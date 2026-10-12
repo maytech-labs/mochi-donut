@@ -1,0 +1,29 @@
+[package]
+name = "mochi-yuzu"
+description = "yuzu: what your environment is. Classifies and gates the targets a command will touch, and checks services from where you are."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+keywords = ["agents", "cli", "kubernetes", "safety", "developer-tools"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "yuzu"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+mochi-common = { version = "0.0.0", path = "../common" }
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+predicates = "3.1.4"
+serde_json = "1.0.154"
