@@ -1,0 +1,31 @@
+[package]
+name = "mochi-matcha"
+description = "matcha: what a repo knows. Conventions, change recipes, doc drift, and a verified-facts ledger for AI agents."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "../../README.md"
+keywords = ["agents", "cli", "git", "conventions", "developer-tools"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "matcha"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+mochi-common = { version = "0.0.0", path = "../common" }
+mochi-index = { version = "0.0.0", path = "../index" }
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+predicates = "3.1.4"
+serde_json = "1.0.154"
+tempfile = "3.27.0"
