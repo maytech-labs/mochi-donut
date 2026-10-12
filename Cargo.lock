@@ -254,6 +254,8 @@ dependencies = [
  "mochi-common",
  "mochi-index",
  "predicates",
+ "regex",
+ "serde",
  "serde_json",
  "tempfile",
 ]

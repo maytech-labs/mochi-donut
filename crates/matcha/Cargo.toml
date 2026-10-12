@@ -23,6 +23,9 @@ workspace = true
 clap = { version = "4.6.7", features = ["derive"] }
 mochi-common = { version = "0.0.0", path = "../common" }
 mochi-index = { version = "0.0.0", path = "../index" }
+regex = { version = "1.13.1", default-features = false, features = ["std", "perf", "unicode-perl", "unicode-case"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 
 [dev-dependencies]
 assert_cmd = "2.2.2"

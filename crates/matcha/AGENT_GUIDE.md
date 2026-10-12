@@ -1,13 +1,23 @@
 matcha: what a repo knows, with evidence.
 
-Status: pre-release. Commands marked (planned) exit with code 3 and say so.
-
 When to run what
-  Before copying a pattern or writing a guideline      matcha census "<what>"     (planned)
-  Before a change you haven't made in this repo        matcha recipe --like "<what you're doing>"   (planned)
-  Before committing                                    matcha recipe --check      (planned; meant to run from a hook)
-  When you rely on a fact                              matcha ledger add verified|assumed "<claim>"   (planned)
-  In CI                                                matcha drift               (planned)
+  Before copying a pattern or writing a guideline
+    matcha census "<what>" --alt '<regex>' --alt '<regex>'   compare ways of doing it
+    matcha census --spelling <stem>                          which spelling the repo uses
+  Before a change you haven't made in this repo
+    matcha recipe --like "<words from a commit subject>"     files similar changes touched
+  Before committing (best from a hook)
+    matcha recipe --check                                    exit 1 if a usual companion file didn't change
+  To decide whether to trust recipe here
+    matcha recipe --replay 50                                its precision on this repo's history
+  Not built yet (exit 3)
+    matcha drift, matcha ledger
+
+Reading recipe --check
+  "X changed but Y didn't. 9 of 9 earlier changes to X changed both."
+  The counts are the evidence. "Usual fix" names a make target or npm script
+  that writes Y, when one exists. Thresholds: --min-support (5),
+  --min-confidence (0.9), --min-lift (2).
 
 Flags on every command
   --json         one JSON object on stdout

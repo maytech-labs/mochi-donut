@@ -35,7 +35,7 @@ fn unbuilt_commands_say_so_in_json_with_exit_code_3() {
     std::fs::create_dir(repo.path().join(".git")).unwrap();
 
     let out = matcha()
-        .args(["census", "form state", "--json", "--repo"])
+        .args(["drift", "--json", "--repo"])
         .arg(repo.path())
         .assert()
         .code(3)
@@ -45,7 +45,7 @@ fn unbuilt_commands_say_so_in_json_with_exit_code_3() {
     let body: Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(body["status"], "not_implemented");
     assert_eq!(body["tool"], "matcha");
-    assert_eq!(body["command"], "census");
+    assert_eq!(body["command"], "drift");
 }
 
 #[test]
