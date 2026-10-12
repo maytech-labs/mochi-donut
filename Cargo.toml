@@ -18,6 +18,10 @@ unsafe_code = "forbid"
 unwrap_used = "warn"
 expect_used = "warn"
 
+# Small and fast: measured in docs/decisions/0009-release-profile.md.
 [profile.release]
-lto = "thin"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
 strip = true
