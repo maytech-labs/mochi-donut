@@ -13,6 +13,8 @@ mochi-donut is a Cargo workspace of command-line tools for AI coding agents:
 | `crates/index` | `mochi-index` | The local index of a repo's files and history that matcha reads |
 | `crates/common` | `mochi-common` | Output format, exit codes, and `--json` conventions both tools share |
 | `xtask` | (not published) | Repo automation: `cargo xtask <task>` |
+| `Makefile` | | `make install` and friends: a thin wrapper over Cargo ([0010](docs/decisions/0010-make-install.md)) |
+| `Formula/` | | The Homebrew formula; this repo is its own tap ([0011](docs/decisions/0011-homebrew-tap.md)) |
 
 The design is in [docs/design.md](docs/design.md). Decisions are in [docs/decisions/](docs/decisions/).
 
@@ -26,7 +28,7 @@ The design is in [docs/design.md](docs/design.md). Decisions are in [docs/decisi
 
 ## Rules
 
-1. **Rust only**, built with Cargo. No other languages or build systems without an ADR ([0002](docs/decisions/0002-rust-and-cargo.md)).
+1. **Rust only**, built with Cargo. No other languages or build systems without an ADR ([0002](docs/decisions/0002-rust-and-cargo.md)). The release profile in `Cargo.toml` is tuned and measured ([0009](docs/decisions/0009-release-profile.md)); changing it needs new measurements. Prefer small dependencies; check the binary size before adding one.
 2. **Every command supports `--json`** (one object on stdout) and uses the exit codes in `mochi_common::exit`: 0 ok, 1 a check failed, 2 usage, 3 not built yet. These are a contract: agents and hooks act on them. Changing one is a breaking change.
 3. **Evidence, not opinion.** Output shows counts, examples, commits, and sample sizes. When a tool doesn't know, it says so; it never guesses.
 4. **Fail safe.** `yuzu check` treats anything unknown as risky. A crash or a parse error in a check blocks; it never silently allows.

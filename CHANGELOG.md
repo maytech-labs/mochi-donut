@@ -10,4 +10,9 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `matcha agent-guide` and `yuzu agent-guide`.
 - `matcha census`: compare alternatives (`--alt`) or spellings (`--spelling`) across tracked files, by language, with examples.
 - `matcha recipe`: `--check` the working tree or a past `--commit` for missing companion files, with the usual fix; `--like` for what similar changes touched; `--replay` to measure its own precision on the repo's history.
-- Design doc and ADRs 0001–0006.
+- Design doc and ADRs 0001–0011.
+- `make install` (default `/usr/local/bin`) and a Homebrew formula (`brew install --HEAD mochi-donut` from this repo's tap).
+
+### Changed
+
+- Release builds use fat LTO, one codegen unit, and `panic = "abort"`: 29% smaller and about 10% faster.

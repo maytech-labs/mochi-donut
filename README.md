@@ -22,15 +22,31 @@ yuzu agent-guide
 
 ## Install
 
-From source, until the first release:
+With Homebrew (builds the latest `main` until the first release):
+
+```sh
+brew tap trammel-may/mochi-donut https://github.com/trammel-may/mochi-donut
+brew install --HEAD mochi-donut
+brew upgrade --fetch-HEAD mochi-donut   # later, to update
+```
+
+From a clone, into `/usr/local/bin` (or set `PREFIX`):
+
+```sh
+make install
+make install PREFIX=~/.local   # somewhere else
+make uninstall
+```
+
+With Cargo:
 
 ```sh
 cargo install --git https://github.com/trammel-may/mochi-donut mochi-matcha mochi-yuzu
 ```
 
-The packages are named `mochi-matcha` and `mochi-yuzu`; the commands they install are `matcha` and `yuzu`.
+Pick one way; two installs means two copies on your `PATH`. The packages are named `mochi-matcha` and `mochi-yuzu`; the commands they install are `matcha` and `yuzu`.
 
-Note: Homebrew has an unrelated `matcha` (an RSS digest tool). If you have both, whichever comes first on your `PATH` wins.
+Note: Homebrew has an unrelated `matcha` (an RSS digest tool). The formula conflicts with it, and if you install another way, whichever comes first on your `PATH` wins.
 
 ## Roadmap
 

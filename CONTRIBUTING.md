@@ -8,7 +8,8 @@ You need [rustup](https://rustup.rs). The toolchain version is pinned in `rust-t
 
 ```sh
 cargo build
-cargo xtask check   # fmt, clippy, tests: the same as CI
+cargo xtask check   # fmt, clippy, tests: the same as CI (or: make check)
+make install        # build and install matcha and yuzu into /usr/local/bin
 ```
 
 ## Making a change

@@ -13,3 +13,6 @@
 - [0006 Terse conventional commits, no tool attribution](decisions/0006-commit-messages.md)
 - [0007 Phase 1 index: ask git, compute in memory](decisions/0007-phase-1-index.md)
 - [0008 How recipe decides a file is missing, and how we measure it](decisions/0008-recipe-scoring.md)
+- [0009 A release profile tuned for small and fast](decisions/0009-release-profile.md)
+- [0010 `make install` into /usr/local/bin](decisions/0010-make-install.md)
+- [0011 This repo is its own Homebrew tap](decisions/0011-homebrew-tap.md)
