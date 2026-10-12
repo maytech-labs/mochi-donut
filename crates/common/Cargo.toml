@@ -1,0 +1,16 @@
+[package]
+name = "mochi-common"
+description = "Shared output, exit codes, and conventions for the mochi-donut tools."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
