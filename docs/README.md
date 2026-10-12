@@ -11,3 +11,5 @@
 - [0004 Prove the tools are useful before announcing them](decisions/0004-prove-before-announcing.md)
 - [0005 MIT license](decisions/0005-mit-license.md)
 - [0006 Terse conventional commits, no tool attribution](decisions/0006-commit-messages.md)
+- [0007 Phase 1 index: ask git, compute in memory](decisions/0007-phase-1-index.md)
+- [0008 How recipe decides a file is missing, and how we measure it](decisions/0008-recipe-scoring.md)

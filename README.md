@@ -2,7 +2,7 @@
 
 Tools that help AI coding agents work in a repo the way a careful teammate would: with evidence about how things are done here, and without touching the wrong environment.
 
-> **Status: pre-release.** The commands exist and parse, but none do their real work yet. See the [design](docs/design.md) and the [roadmap](#roadmap).
+> **Status: pre-release.** `matcha census` and `matcha recipe` work; the rest of the commands parse and say they aren't built yet. See the [design](docs/design.md) and the [roadmap](#roadmap).
 
 Agents start every session with no memory. They guess the house style, forget the companion edits a change needs, trust docs that have drifted, and run commands against whatever cluster or account the shell happens to point at. mochi-donut answers those questions from the repo's own history and from a declaration of your environments, in a form agents can act on.
 
@@ -34,7 +34,7 @@ Note: Homebrew has an unrelated `matcha` (an RSS digest tool). If you have both,
 
 ## Roadmap
 
-1. `matcha census` and `matcha recipe`, proven on real repos
+1. `matcha census` and `matcha recipe` (built; `recipe` is at 80 to 82% precision against a 90% bar, see [ADR 0008](docs/decisions/0008-recipe-scoring.md))
 2. `yuzu status` and `yuzu check`, run as a pre-command hook
 3. `matcha drift` and `matcha ledger`
 4. `yuzu probe`

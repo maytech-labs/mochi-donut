@@ -102,7 +102,7 @@ Not a daemon, and not an IDE plugin. A background process to keep `matcha`'s ind
 
 #### The index
 
-`matcha`'s four commands sit on one local index, stored under `.matcha/` in the repo (ignored by git) or in a user cache directory:
+`matcha`'s four commands sit on one local index. Phase 1 builds it in memory from `git` on each run ([ADR 0007](decisions/0007-phase-1-index.md)); the persistent form described here, under `.matcha/` (ignored by git) or a user cache directory, comes when repos need it:
 
 - **Files:** paths, languages, sizes, generated or vendored markers.
 - **History:** commits with their changed files, messages, and dates, from `git log --name-status`. Squash-merged PRs count as one change.
@@ -141,6 +141,8 @@ $ matcha census --spelling cancel
 
 **Done when.** On Anchor, every claim in `docs/guidelines/` that describes a pattern can be confirmed or refuted by one `census` command.
 
+**Status (2026-10-12): built.** `--alt` and `--spelling` work. On Anchor it confirmed the forms guideline (`\b\w+Draft\b` in 17 files, 94%, against `useForm` in 1) and the spelling rule (`cancelled` 105 times, `canceled` never) in under a second. Named patterns and `--trend` aren't built yet.
+
 #### `recipe`: what else changes when I change this?
 
 **Problem.** Many changes need companion edits that are easy to forget (regenerated files, registrations, tests). Repos keep hand-written checklists for them, and the checklists go stale.
@@ -169,6 +171,8 @@ $ matcha recipe --check            # against the working tree
 - `--check` runs before a commit and only reports rules with high confidence and enough history (defaults: 90% of at least 5 changes), so it stays quiet unless it's sure.
 
 **Done when.** Replaying Anchor's last 20 feature PRs with the final commit's companion files removed, `recipe --check` names the missing files with at least 80% recall and almost no false alarms (precision of at least 90%).
+
+**Status (2026-10-12): built, below the bar.** `--check`, `--commit`, `--like`, and `--replay` work. Measured with `--replay`: 80% precision on Anchor and 82% on Ghostty, against the 90% bar. The recall bar turned out to need labeled companion files to measure fairly. Details, the scoring rules, and what to try next are in [ADR 0008](decisions/0008-recipe-scoring.md). Path patterns in `--check` aren't built yet.
 
 #### `drift`: are the docs still true?
 
