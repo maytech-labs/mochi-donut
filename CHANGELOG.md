@@ -10,7 +10,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `matcha agent-guide` and `yuzu agent-guide`.
 - `matcha census`: compare alternatives (`--alt`) or spellings (`--spelling`) across tracked files, by language, with examples.
 - `matcha recipe`: `--check` the working tree or a past `--commit` for missing companion files, with the usual fix; `--like` for what similar changes touched; `--replay` to measure its own precision on the repo's history.
-- Design doc and ADRs 0001–0012.
+- `yuzu` (status): the current kube context, aws profile, and git remotes, and whose they are.
+- `yuzu check`: what a command would touch through `kubectl`, `helm`, `ssh`, `scp`, `rsync`, `git push`, and `aws`, and whether it needs the user's approval.
+- `yuzu hook claude-code`: `check` as a Claude Code `PreToolUse` hook.
+- Design doc and ADRs 0001–0014.
 - `make install` (default `/usr/local/bin`) and a Homebrew formula (`brew install --HEAD mochi-donut` from this repo's tap).
 
 ### Changed

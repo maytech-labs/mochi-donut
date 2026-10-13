@@ -17,3 +17,5 @@
 - [0010 `make install` into /usr/local/bin](decisions/0010-make-install.md)
 - [0011 This repo is its own Homebrew tap](decisions/0011-homebrew-tap.md)
 - [0012 recipe needs six earlier changes; commit weighting didn't help](decisions/0012-recipe-support-six.md)
+- [0013 How yuzu check finds targets and decides](decisions/0013-yuzu-check.md)
+- [0014 yuzu runs as a Claude Code hook that's silent when it allows](decisions/0014-claude-code-hook.md)

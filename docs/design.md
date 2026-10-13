@@ -252,13 +252,13 @@ $ yuzu check -- kubectl apply -f openbao.yaml
   [[env]]
   name = "homelab"
   class = "mine"
-  kube_context = "k3s-pis"
+  kube_contexts = ["k3s-pis"]
   ssh_hosts = ["pi-1", "pi-2", "pi-3"]
 
   [[env]]
   name = "work"
   class = "production"
-  kube_context = "*-prod-*"
+  kube_contexts = ["*-prod-*"]
   agents = "read-only"
   ```
 - `yuzu check -- <command>` resolves what the command would act on (the effective kube context and namespace, `--context` flags, `KUBECONFIG`, AWS and GCP profiles, `ssh` hosts, `git push` remotes, `docker` contexts) and compares it with the declarations.
@@ -266,6 +266,8 @@ $ yuzu check -- kubectl apply -f openbao.yaml
 - Unknown targets count as risky.
 
 **Done when.** With the declarations above, an agent session that tries a write against any context other than the homelab is stopped before the command runs, and reads still work.
+
+**Status (2026-10-12): built, on trial.** `yuzu`, `yuzu check`, and `yuzu hook claude-code` work for `kubectl`, `helm`, `ssh`, `scp`, `rsync`, `git push`, and `aws`. Writes outside `mine` ask the user rather than being denied. Replaying 2,118 past Bash commands from this Mac stopped one, correctly, and blocked nothing it shouldn't have. The two-week hook trial from [ADR 0004](decisions/0004-prove-before-announcing.md) starts when the hook is installed. Details in [ADR 0013](decisions/0013-yuzu-check.md) and [ADR 0014](decisions/0014-claude-code-hook.md).
 
 #### `yuzu probe`: does it work from where the user is?
 
