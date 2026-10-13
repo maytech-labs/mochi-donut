@@ -72,7 +72,7 @@ Run `yuzu` to see where your shell points, and `yuzu check -- '<command>'` to se
 
 1. `matcha census` and `matcha recipe` (built; `recipe` clears its 90% precision bar on Ghostty and vim but not on Anchor, see [ADR 0012](docs/decisions/0012-recipe-support-six.md))
 2. `yuzu status` and `yuzu check`, run as a pre-command hook (built; on a two-week trial, see [ADR 0014](docs/decisions/0014-claude-code-hook.md))
-3. `matcha drift` (mechanical claims built and meets its bar on Anchor, see [ADR 0015](docs/decisions/0015-drift-mechanical-claims.md); check comments next) and `matcha ledger`
+3. `matcha drift` (mechanical claims built and meets its bar on Anchor, and check comments built, see ADRs [0015](docs/decisions/0015-drift-mechanical-claims.md) and [0016](docs/decisions/0016-drift-check-comments.md)) and `matcha ledger`
 4. `yuzu probe`
 5. An MCP server and agent skills
 
