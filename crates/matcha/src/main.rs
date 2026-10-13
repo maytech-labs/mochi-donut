@@ -7,6 +7,7 @@ mod drift;
 mod files;
 mod markdown;
 mod recipe;
+mod rules;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -72,6 +73,10 @@ struct DriftArgs {
     /// Only check docs under these paths. Repeatable.
     #[arg(long = "in", value_name = "PATH")]
     paths: Vec<String>,
+    /// Propose check comments for sentences that read like rules, with
+    /// whether the code follows each today. Changes nothing.
+    #[arg(long)]
+    suggest: bool,
 }
 
 #[derive(Debug, Args)]
@@ -337,6 +342,31 @@ fn run_drift(root: &RepoRoot, args: DriftArgs, format: Format) -> Result<u8, Str
         .filter(|f| args.paths.is_empty() || args.paths.iter().any(|p| files::under(&f.path, p)))
         .collect();
     let repo = drift::Repo::new(root, tracked, &all, &docs);
+
+    if args.suggest {
+        let suggestions = repo.suggest(&docs);
+        match format {
+            Format::Json => print_json(&serde_json::json!({ "suggestions": suggestions })),
+            Format::Text => {
+                for s in &suggestions {
+                    println!("{}:{}  {}", s.doc, s.line, s.sentence);
+                    let now = if s.holds_now {
+                        "holds now"
+                    } else {
+                        "fails now"
+                    };
+                    println!("  {}", s.comment);
+                    println!("  {now}: {}", s.evidence);
+                }
+                println!(
+                    "{} suggestions. Review each, then paste the comment on the line before its sentence.",
+                    suggestions.len()
+                );
+            }
+        }
+        return Ok(exit::OK);
+    }
+
     let r = repo.check(&docs);
 
     match format {
@@ -349,6 +379,7 @@ fn run_drift(root: &RepoRoot, args: DriftArgs, format: Format) -> Result<u8, Str
             for f in &r.failing {
                 let claim = match f.kind {
                     drift::Kind::Link | drift::Kind::Anchor => format!("({})", f.claim),
+                    drift::Kind::Rule => format!("\"{}\"", f.claim),
                     _ => format!("`{}`", f.claim),
                 };
                 println!("{}:{}", f.doc, f.line);

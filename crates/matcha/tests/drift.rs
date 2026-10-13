@@ -192,3 +192,56 @@ fn ignored_paths_are_skipped_not_failed() {
     assert_eq!(body["holds"], 1, "{body}");
     assert_eq!(body["skipped"], 2, "{body}");
 }
+
+#[test]
+fn check_comments_prove_or_refute_their_sentence() {
+    // clock.rs calls Utc::now(); nothing else does.
+    let holds = repo(
+        "# Time\n\n<!-- matcha: no-match 'Utc::now\\(' except 'clock.rs' -->\nNever call `Utc::now()` outside a `Clock`.\n",
+    );
+    let body = json(matcha(holds.path()).arg("drift"), 0);
+    // The rule holds. `Utc::now()` and `Clock` sit in a "never" clause, so
+    // they aren't symbol claims.
+    assert_eq!(body["holds"], 1, "{body}");
+
+    let fails =
+        repo("# Time\n\n<!-- matcha: no-match 'Utc::now\\(' -->\nNever call `Utc::now()`.\n");
+    matcha(fails.path())
+        .arg("drift")
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains(
+            "docs/engineering/conventions.md:4",
+        ))
+        .stdout(predicate::str::contains("\"Never call `Utc::now()`.\""))
+        .stdout(predicate::str::contains(
+            "found 1 line in 1 file (backend/src/clock.rs:2)",
+        ));
+}
+
+#[test]
+fn a_check_comment_that_cant_run_fails() {
+    let repo = repo("# Time\n\n<!-- matcha: forbid 'x' -->\nNo x.\n");
+    let body = json(matcha(repo.path()).arg("drift"), 1);
+    assert_eq!(body["failing"][0]["kind"], "rule");
+    assert!(
+        body["failing"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("unknown check"),
+        "{body}"
+    );
+}
+
+#[test]
+fn suggest_proposes_comments_with_evidence() {
+    let repo = repo("# Time\n\nNever call `Utc::now()` outside `clock.rs`.\n");
+    let body = json(matcha(repo.path()).args(["drift", "--suggest"]), 0);
+    let s = &body["suggestions"][0];
+    assert_eq!(s["line"], 3, "{body}");
+    assert_eq!(
+        s["comment"],
+        "<!-- matcha: no-match 'Utc::now\\(\\)' except 'clock.rs' -->"
+    );
+    assert_eq!(s["holds_now"], true);
+}

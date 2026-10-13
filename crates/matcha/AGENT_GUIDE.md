@@ -12,6 +12,8 @@ When to run what
     matcha recipe --replay 50                                its precision on this repo's history
   Before trusting a doc, and after changing code a doc describes
     matcha drift --in docs/                                  exit 1 if a link, path, or name in the docs is gone
+  When writing a rule into a doc ("never X", "always Y")
+    matcha drift --suggest                                   a check comment to put above it, with evidence
   Not built yet (exit 3)
     matcha ledger
 
@@ -26,6 +28,9 @@ Reading drift
   Fix the doc, or the code. Names outside this repo are false alarms: put
   <!-- matcha: skip --> on the line before. A doc that's a plan or a write-up
   of another repo can say <!-- matcha: links-only -->.
+  A rule sentence can carry its own check, on the line before it:
+    <!-- matcha: no-match 'Utc::now\(' except 'clock.rs' -->
+  It fails with the matching lines. match '<regex>' requires a match instead.
 
 Flags on every command
   --json         one JSON object on stdout

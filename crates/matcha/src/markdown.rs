@@ -14,6 +14,19 @@ pub struct Span {
     pub after: String,
 }
 
+/// A `<!-- matcha: ... -->` check comment and the line it vouches for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Rule {
+    /// Where the comment starts.
+    pub line: usize,
+    /// The comment's text after `matcha:`, trimmed.
+    pub text: String,
+    /// The next non-blank line after the comment, and its text. The
+    /// comment's own line if nothing follows.
+    pub claim_line: usize,
+    pub claim: String,
+}
+
 /// A link target, as written: `../a.md#b`, `#b`, `https://...`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Link {
@@ -29,18 +42,25 @@ pub struct Doc {
     pub anchors: BTreeSet<String>,
     /// The doc asked for only its links to be checked.
     pub links_only: bool,
+    pub rules: Vec<Rule>,
+    /// Every line of prose, without comments, outside code blocks.
+    pub lines: Vec<(usize, String)>,
 }
 
-/// Marks the next non-blank line as not to be checked.
-const SKIP: &str = "<!-- matcha: skip -->";
-/// Marks a doc whose code spans aren't claims about this repo (a proposal, a
-/// write-up of another repo). Its links are still checked.
-const LINKS_ONLY: &str = "<!-- matcha: links-only -->";
+// Directives, each a comment that starts its line:
+//   <!-- matcha: skip -->        the next non-blank line isn't checked
+//   <!-- matcha: links-only -->  only the doc's links are checked: it's a
+//                                proposal, or a write-up of another repo
+//   <!-- matcha: <check> -->     a check comment (see rules.rs)
 
 pub fn parse(text: &str) -> Doc {
     let mut doc = Doc::default();
     let mut fence: Option<(char, usize)> = None;
     let mut in_comment = false;
+    let mut comment = String::new();
+    let mut comment_line = 0;
+    let mut directive = false;
+    let mut waiting: Vec<usize> = Vec::new();
     let mut skip_next = false;
     let mut slugs = Slugger::default();
 
@@ -61,28 +81,56 @@ pub fn parse(text: &str) -> Doc {
         }
 
         collect_html_anchors(raw, &mut doc.anchors);
-        if raw.contains(LINKS_ONLY) {
-            doc.links_only = true;
-        }
 
-        // Drop HTML comments, which may span lines.
+        // Drop HTML comments, which may span lines. Only a comment that
+        // starts its line (an HTML block, in CommonMark) can be a `matcha:`
+        // directive, and `<!--` inside a code span is just text.
         let mut line = String::new();
         let mut rest = raw;
+        let mut skip_this = false;
         loop {
             if in_comment {
                 match rest.find("-->") {
                     Some(end) => {
+                        comment.push_str(&rest[..end]);
                         rest = &rest[end + 3..];
                         in_comment = false;
+                        match directive.then(|| directive_text(&comment)).flatten() {
+                            Some("skip") => {
+                                skip_next = true;
+                                skip_this = true;
+                            }
+                            Some("links-only") => doc.links_only = true,
+                            Some(text) => {
+                                waiting.push(doc.rules.len());
+                                doc.rules.push(Rule {
+                                    line: comment_line,
+                                    text: text.to_owned(),
+                                    claim_line: comment_line,
+                                    claim: String::new(),
+                                });
+                            }
+                            None => {}
+                        }
+                        comment.clear();
                     }
-                    None => break,
+                    None => {
+                        comment.push_str(rest);
+                        comment.push('\n');
+                        break;
+                    }
                 }
             } else {
-                match rest.find("<!--") {
+                match comment_start(rest) {
                     Some(start) => {
+                        directive = line.trim().is_empty()
+                            && rest.len() == raw.len()
+                            && raw.len() - trimmed.len() <= 3
+                            && start == raw.len() - trimmed.len();
                         line.push_str(&rest[..start]);
                         rest = &rest[start + 4..];
                         in_comment = true;
+                        comment_line = line_no;
                     }
                     None => {
                         line.push_str(rest);
@@ -92,13 +140,17 @@ pub fn parse(text: &str) -> Doc {
             }
         }
 
-        if raw.contains(SKIP) {
-            skip_next = true;
+        if skip_this {
             continue;
         }
         if line.trim().is_empty() {
             continue;
         }
+        for i in waiting.drain(..) {
+            doc.rules[i].claim_line = line_no;
+            doc.rules[i].claim = line.trim().to_owned();
+        }
+        doc.lines.push((line_no, line.clone()));
 
         if let Some(heading) = atx_heading(&line) {
             doc.anchors.insert(slugs.slug(heading));
@@ -124,6 +176,21 @@ pub fn parse(text: &str) -> Doc {
     doc
 }
 
+/// The text of a `matcha:` comment after the prefix, trimmed.
+fn directive_text(comment: &str) -> Option<&str> {
+    Some(comment.trim().strip_prefix("matcha:")?.trim())
+}
+
+/// Where the first `<!--` outside a code span starts.
+fn comment_start(s: &str) -> Option<usize> {
+    let spans = code_spans(s).0;
+    s.match_indices("<!--").map(|(i, _)| i).find(|i| {
+        !spans
+            .iter()
+            .any(|(start, end, _)| (*start..*end).contains(i))
+    })
+}
+
 /// The fence character and length if `line` opens a fenced code block.
 fn fence_open(line: &str) -> Option<(char, usize)> {
     let ch = line.chars().next().filter(|&c| c == '`' || c == '~')?;
@@ -145,6 +212,11 @@ fn atx_heading(line: &str) -> Option<&str> {
         return None;
     }
     Some(rest.trim().trim_end_matches('#').trim_end())
+}
+
+/// Code spans in one line as (start, end, content) byte offsets.
+pub fn spans_in(line: &str) -> Vec<(usize, usize, String)> {
+    code_spans(line).0
 }
 
 /// Code spans as (start, end, content) byte offsets into `line`, and the line
@@ -359,6 +431,34 @@ mod tests {
         let doc = parse("<!-- matcha: skip -->\n\n`a` [x](y.md)\n`b`\n");
         assert_eq!(codes(&doc), ["b"]);
         assert!(doc.links.is_empty());
+    }
+
+    #[test]
+    fn finds_check_comments_and_their_lines() {
+        let doc = parse(
+            "<!-- matcha: no-match 'Utc::now\\(' except 'clock.rs' -->\n\nNever call `Utc::now()`.\n<!-- matcha: skip -->\n<!-- just a note -->\n<!--\nmatcha: match 'Clock'\n-->\n",
+        );
+        assert_eq!(doc.rules.len(), 2);
+        assert_eq!(
+            doc.rules[0].text,
+            "no-match 'Utc::now\\(' except 'clock.rs'"
+        );
+        assert_eq!(doc.rules[0].line, 1);
+        assert_eq!(doc.rules[0].claim_line, 3);
+        assert_eq!(doc.rules[0].claim, "Never call `Utc::now()`.");
+        assert_eq!(doc.rules[1].text, "match 'Clock'");
+        assert_eq!(doc.rules[1].line, 6);
+        assert_eq!(doc.rules[1].claim_line, 6);
+    }
+
+    #[test]
+    fn directives_must_start_their_line() {
+        let doc = parse(
+            "Write `<!-- matcha: no-match 'x' -->` above it.\nSee <!-- matcha: skip --> here `a_b`.\n    <!-- matcha: links-only -->\n",
+        );
+        assert!(doc.rules.is_empty());
+        assert!(!doc.links_only);
+        assert_eq!(codes(&doc), ["<!-- matcha: no-match 'x' -->", "a_b"]);
     }
 
     #[test]

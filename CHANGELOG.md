@@ -11,10 +11,11 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `matcha census`: compare alternatives (`--alt`) or spellings (`--spelling`) across tracked files, by language, with examples.
 - `matcha recipe`: `--check` the working tree or a past `--commit` for missing companion files, with the usual fix; `--like` for what similar changes touched; `--replay` to measure its own precision on the repo's history.
 - `matcha drift`: check that the docs' links, anchors, and code spans naming paths, identifiers, `make` targets, and `npm run` scripts still match the repo. `<!-- matcha: skip -->` and `<!-- matcha: links-only -->` mark what isn't a claim.
+- `matcha drift` check comments: `<!-- matcha: no-match '<regex>' except '<path>' -->` beside a sentence proves it on every run. `--suggest` proposes them, each with whether the code follows it today.
 - `yuzu` (status): the current kube context, aws profile, and git remotes, and whose they are.
 - `yuzu check`: what a command would touch through `kubectl`, `helm`, `ssh`, `scp`, `rsync`, `git push`, and `aws`, and whether it needs the user's approval.
 - `yuzu hook claude-code`: `check` as a Claude Code `PreToolUse` hook.
-- Design doc and ADRs 0001–0015.
+- Design doc and ADRs 0001–0016.
 - `make install` (default `/usr/local/bin`) and a Homebrew formula (`brew install --HEAD mochi-donut` from this repo's tap).
 
 ### Changed

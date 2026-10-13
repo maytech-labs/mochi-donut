@@ -10,6 +10,7 @@ use serde::Serialize;
 
 use crate::files::SourceFile;
 use crate::markdown::{self, Link, Span};
+use crate::rules;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -26,6 +27,8 @@ pub enum Kind {
     Link,
     /// A link to a heading in a Markdown file.
     Anchor,
+    /// A sentence with a `<!-- matcha: ... -->` check comment.
+    Rule,
 }
 
 /// A claim that's no longer true.
@@ -129,6 +132,7 @@ enum Claim<'s> {
 /// Everything the checks look things up in, built once per run.
 pub struct Repo<'a> {
     root: &'a RepoRoot,
+    all: &'a [SourceFile],
     files: BTreeSet<String>,
     dirs: BTreeSet<String>,
     tokens: HashSet<String>,
@@ -144,7 +148,7 @@ impl<'a> Repo<'a> {
     pub fn new(
         root: &'a RepoRoot,
         tracked: Vec<String>,
-        all: &[SourceFile],
+        all: &'a [SourceFile],
         docs: &[&SourceFile],
     ) -> Self {
         let mut dirs = BTreeSet::new();
@@ -187,6 +191,7 @@ impl<'a> Repo<'a> {
         }
         let mut repo = Repo {
             root,
+            all,
             files: tracked.into_iter().collect(),
             dirs,
             tokens: HashSet::new(),
@@ -259,6 +264,20 @@ impl<'a> Repo<'a> {
                     None => skipped += 1,
                 }
             }
+            // Check comments are explicit, so they count in every doc.
+            for rule in &parsed.rules {
+                let claim = if rule.claim.is_empty() {
+                    rule.text.clone()
+                } else {
+                    rule.claim.clone()
+                };
+                outcomes.push((
+                    rule.claim_line,
+                    Kind::Rule,
+                    claim,
+                    self.check_rule(&rule.text),
+                ));
+            }
             // Spans before links on the same line; otherwise in line order.
             // A claim repeated on one line is reported once.
             outcomes.sort_by_key(|o| o.0);
@@ -319,6 +338,84 @@ impl<'a> Repo<'a> {
             failing,
             skipped,
         }
+    }
+
+    fn check_rule(&self, text: &str) -> Outcome {
+        let rule = match rules::parse(text) {
+            Ok(rule) => rule,
+            // A check that can't run fails: it never silently passes.
+            Err(e) => {
+                return Outcome::Fails {
+                    reason: format!("can't read the check comment `{text}`: {e}"),
+                    fix: rules::SYNTAX.into(),
+                };
+            }
+        };
+        let e = rules::evaluate(&rule, self.all, is_source);
+        if e.holds {
+            return Outcome::Holds;
+        }
+        match rule.expect {
+            rules::Expect::NoMatch => Outcome::Fails {
+                reason: format!("`{text}`: found {}", rules::describe_hits(&e)),
+                fix: "Change the code to follow the doc, or the doc to match the code. A deliberate exception goes in the comment: except '<path>'.".into(),
+            },
+            rules::Expect::Match => Outcome::Fails {
+                reason: format!(
+                    "`{text}`: matches nothing in {} files searched",
+                    e.files_searched
+                ),
+                fix: "Change the code to follow the doc, or fix the comment's pattern.".into(),
+            },
+        }
+    }
+
+    /// Check comments for sentences in `docs` that read like rules and don't
+    /// have one yet, each with whether the code follows it today.
+    pub fn suggest(&self, docs: &[&SourceFile]) -> Vec<rules::Suggestion> {
+        let mut out = Vec::new();
+        for doc in docs.iter().filter(|d| !is_past_or_future(&d.path)) {
+            let parsed = markdown::parse(&doc.text);
+            if parsed.links_only {
+                continue;
+            }
+            let covered: HashSet<usize> = parsed.rules.iter().map(|r| r.claim_line).collect();
+            for (line_no, line) in &parsed.lines {
+                if covered.contains(line_no) {
+                    continue;
+                }
+                let is_name = |code: &str| {
+                    !placeholder(code)
+                        && !looks_like_path(code, |first| self.exists_near(&doc.path, first))
+                        && symbol_name(code).is_some()
+                };
+                let Some(comment) = rules::suggest(line, is_name) else {
+                    continue;
+                };
+                let text = comment
+                    .trim_start_matches("<!-- matcha:")
+                    .trim_end_matches("-->")
+                    .trim();
+                let Ok(rule) = rules::parse(text) else {
+                    continue;
+                };
+                let e = rules::evaluate(&rule, self.all, is_source);
+                let evidence = if e.hits.is_empty() {
+                    format!("matches nothing in {} files", e.files_searched)
+                } else {
+                    format!("matches {}", rules::describe_hits(&e))
+                };
+                out.push(rules::Suggestion {
+                    doc: doc.path.clone(),
+                    line: *line_no,
+                    sentence: line.trim().to_owned(),
+                    comment,
+                    holds_now: e.holds,
+                    evidence,
+                });
+            }
+        }
+        out
     }
 
     /// What a code span claims, or `None` if it makes no checkable claim.
