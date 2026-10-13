@@ -12,6 +12,10 @@ What check looks at
   ssh, scp, rsync    the host
   git push           the remote's URL, normalized (github.com/owner/repo)
   aws                the profile: --profile, else $AWS_PROFILE, else default
+  terraform, tofu,   the directory: -chdir/--cwd, else the working directory
+    terragrunt, pulumi
+  gcloud, az, fly,   the tool itself (its own config holds the account)
+    doctl, heroku, vercel, netlify, wrangler
   It reads through ;, &&, |, $( ), sudo, env, bash -c, and VAR=value prefixes.
 
 Decisions
@@ -39,6 +43,8 @@ Declaring environments: ~/.config/yuzu/environments.toml (or $YUZU_CONFIG)
   ssh_hosts = ["samwise", "10.0.0.*"]
   git_remotes = ["github.com/me/*"]
   aws_profiles = ["personal"]
+  infra_dirs = ["~/homelab/infra/*"] # where terraform and friends run
+  cli_tools = ["flyctl"]             # cloud CLIs whose account is this env's
   # agents = "write" | "read-only" | "none"  (default: write for mine, else read-only)
   The first env with a matching pattern wins.
 

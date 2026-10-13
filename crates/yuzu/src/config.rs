@@ -44,6 +44,13 @@ pub struct Environment {
     pub git_remotes: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub aws_profiles: Vec<String>,
+    /// Directories terraform, tofu, terragrunt, or pulumi run in, with `~`
+    /// for the home directory: `~/homelab/infra/*`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub infra_dirs: Vec<String>,
+    /// Cloud CLIs whose configured account is this environment's: `flyctl`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cli_tools: Vec<String>,
 }
 
 impl Environment {
@@ -60,6 +67,8 @@ impl Environment {
             Kind::SshHost => &self.ssh_hosts,
             Kind::GitRemote => &self.git_remotes,
             Kind::AwsProfile => &self.aws_profiles,
+            Kind::InfraDir => &self.infra_dirs,
+            Kind::CliTool => &self.cli_tools,
         }
     }
 }
@@ -72,6 +81,10 @@ pub enum Kind {
     SshHost,
     GitRemote,
     AwsProfile,
+    /// The directory an infrastructure-as-code tool runs in.
+    InfraDir,
+    /// A cloud CLI that acts on whatever account its own config holds.
+    CliTool,
 }
 
 impl Kind {
@@ -81,6 +94,8 @@ impl Kind {
             Kind::SshHost => "ssh host",
             Kind::GitRemote => "git remote",
             Kind::AwsProfile => "aws profile",
+            Kind::InfraDir => "infra dir",
+            Kind::CliTool => "cloud cli",
         }
     }
 
@@ -91,6 +106,8 @@ impl Kind {
             Kind::SshHost => "ssh_hosts",
             Kind::GitRemote => "git_remotes",
             Kind::AwsProfile => "aws_profiles",
+            Kind::InfraDir => "infra_dirs",
+            Kind::CliTool => "cli_tools",
         }
     }
 }

@@ -1,7 +1,8 @@
 //! What each simple command would reach, and whether it would change it:
 //! the kube context for `kubectl` and `helm`, the host for `ssh`, `scp`,
-//! `sftp`, and `rsync`, the remote for `git push`, and the profile for `aws`.
-//! Anything else is out of scope for now (docs/decisions/0013-yuzu-check.md).
+//! `sftp`, and `rsync`, the remote for `git push`, the profile for `aws`,
+//! the directory for terraform and friends, and the tool for cloud CLIs
+//! (docs/decisions/0013-yuzu-check.md, 0020-yuzu-infra-and-cloud-clis.md).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -157,6 +158,11 @@ fn visit(words: &[String], ctx: &mut Ctx, out: &mut Vec<Target>, depth: usize) {
         "scp" | "rsync" => out.extend(copy(args, command)),
         "git" => out.extend(git(args, &local, command)),
         "aws" => out.extend(aws(args, &local, command)),
+        "terraform" | "tofu" | "terragrunt" | "pulumi" => {
+            out.extend(infra(args, &local, command));
+        }
+        "gcloud" | "az" | "doctl" | "flyctl" | "fly" | "heroku" | "vercel" | "netlify"
+        | "wrangler" => out.extend(cloud_cli(&words[0], args, command)),
         _ => {}
     }
 }
@@ -756,6 +762,115 @@ fn aws(args: &[String], ctx: &Ctx, command: String) -> Option<Target> {
     })
 }
 
+/// Subcommands that only read or plan, for terraform, tofu, terragrunt, and
+/// pulumi. `init` downloads providers into the directory, not the cloud.
+const INFRA_READS: &[&str] = &[
+    "plan",
+    "show",
+    "validate",
+    "output",
+    "fmt",
+    "init",
+    "version",
+    "providers",
+    "graph",
+    "console",
+    "get",
+    "preview",
+    "whoami",
+    "about",
+    "login",
+    "logout",
+    "-help",
+    "--help",
+    "help",
+];
+
+/// The directory an infrastructure-as-code tool works in, written with `~`
+/// for the home directory so `~/homelab/*` can declare it.
+fn infra(args: &[String], ctx: &Ctx, command: String) -> Option<Target> {
+    let mut dir = ctx.cwd.clone();
+    let mut source = Some("the working directory".to_owned());
+    for (i, a) in args.iter().enumerate() {
+        let given = a
+            .strip_prefix("-chdir=")
+            .or_else(|| a.strip_prefix("--cwd="))
+            .or_else(|| {
+                (a == "-C" || a == "--cwd")
+                    .then(|| args.get(i + 1).map(String::as_str))
+                    .flatten()
+            });
+        if let Some(d) = given {
+            dir = ctx.path(d);
+            source = None;
+        }
+    }
+    let pos: Vec<&str> = args
+        .iter()
+        .map(String::as_str)
+        .filter(|a| !a.starts_with('-'))
+        .collect();
+    let sub = pos.first().copied().unwrap_or("");
+    let read = sub.is_empty()
+        || INFRA_READS.contains(&sub)
+        // terraform state list/show, workspace list/show, pulumi stack ls.
+        || (matches!(sub, "state" | "workspace" | "stack" | "config")
+            && matches!(pos.get(1).copied(), None | Some("list" | "ls" | "show" | "select" | "get" | "output")));
+    let dir = normalize(&dir);
+    let shown = match dir.strip_prefix(&ctx.home) {
+        Ok(rest) if !ctx.home.as_os_str().is_empty() => format!("~/{}", rest.display()),
+        _ => dir.display().to_string(),
+    };
+    Some(Target {
+        kind: Kind::InfraDir,
+        name: shown.trim_end_matches('/').to_owned(),
+        access: if read { Access::Read } else { Access::Write },
+        command,
+        source,
+    })
+}
+
+/// `a/b/../c` as `a/c`, without touching the filesystem.
+fn normalize(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for c in path.components() {
+        match c {
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// Words that mark a cloud CLI call as a read.
+const CLI_READS: &[&str] = &[
+    "list", "ls", "describe", "show", "get", "view", "status", "info", "logs", "whoami", "version",
+    "help", "--help", "-h", "auth", "login", "config", "account", "inspect", "open",
+];
+
+/// A cloud CLI acts on the account its own config holds, which yuzu can't
+/// read; the tool itself is the target.
+fn cloud_cli(tool: &str, args: &[String], command: String) -> Option<Target> {
+    let name = if tool == "fly" { "flyctl" } else { tool };
+    let pos: Vec<&str> = args
+        .iter()
+        .map(String::as_str)
+        .filter(|a| !a.starts_with('-') || CLI_READS.contains(a))
+        .take(4)
+        .collect();
+    let read = pos.is_empty() || pos.iter().any(|w| CLI_READS.contains(w));
+    Some(Target {
+        kind: Kind::CliTool,
+        name: name.to_owned(),
+        access: if read { Access::Read } else { Access::Write },
+        command,
+        source: Some(format!("the account in {name}'s own config")),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -982,6 +1097,58 @@ mod tests {
                 "{url}"
             );
         }
+    }
+
+    #[test]
+    fn infra_tools_act_on_their_directory() {
+        let mut c = ctx(Path::new("/home/me/homelab/infra"));
+        c.home = PathBuf::from("/home/me");
+        let w = |s: &str, c: &Ctx| summary(&find(s, c));
+        assert_eq!(
+            w("terraform plan", &c),
+            [("~/homelab/infra".into(), Access::Read)]
+        );
+        assert_eq!(
+            w("terraform apply -auto-approve", &c),
+            [("~/homelab/infra".into(), Access::Write)]
+        );
+        assert_eq!(
+            w("terraform -chdir=/work/prod destroy", &c),
+            [("/work/prod".into(), Access::Write)]
+        );
+        assert_eq!(
+            w("terraform state list", &c),
+            [("~/homelab/infra".into(), Access::Read)]
+        );
+        assert_eq!(
+            w("terraform state rm aws_instance.a", &c),
+            [("~/homelab/infra".into(), Access::Write)]
+        );
+        assert_eq!(
+            w("pulumi up --cwd ../app", &c),
+            [("~/homelab/app".into(), Access::Write)]
+        );
+        assert_eq!(
+            w("cd /work/prod && tofu apply", &c),
+            [("/work/prod".into(), Access::Write)]
+        );
+    }
+
+    #[test]
+    fn cloud_clis_are_their_own_target() {
+        let c = ctx(Path::new("/"));
+        let w = |s: &str| summary(&find(s, &c));
+        assert_eq!(
+            w("gcloud compute instances list"),
+            [("gcloud".into(), Access::Read)]
+        );
+        assert_eq!(
+            w("gcloud compute instances delete vm-1"),
+            [("gcloud".into(), Access::Write)]
+        );
+        assert_eq!(w("fly deploy"), [("flyctl".into(), Access::Write)]);
+        assert_eq!(w("az account show"), [("az".into(), Access::Read)]);
+        assert_eq!(w("heroku --help"), [("heroku".into(), Access::Read)]);
     }
 
     #[test]

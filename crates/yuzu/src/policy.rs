@@ -140,6 +140,12 @@ fn advice(config: &Config, v: &Verdict) -> String {
             " If you meant your own account, use --profile {}.",
             safe.join(" or ")
         ),
+        (Kind::InfraDir, false) => {
+            format!(" Directories agents may apply from: {}.", safe.join(", "))
+        }
+        (Kind::CliTool, false) => {
+            format!(" CLIs agents may change things with: {}.", safe.join(", "))
+        }
     };
     let declare = if v.env.is_none() {
         format!(
@@ -166,6 +172,8 @@ mod tests {
             ssh_hosts: vec![],
             git_remotes: vec![],
             aws_profiles: vec![],
+            infra_dirs: vec![],
+            cli_tools: vec![],
         }
     }
 
