@@ -275,6 +275,87 @@ fn rerun_failed_reruns_after_the_code_is_fixed() {
         .stdout(predicate::str::contains("Nothing failed in the last run"));
 }
 
+/// A backend workspace and a frontend package in subdirectories, whose CI
+/// runs each job in its own directory, as Anchor's does.
+const SPLIT: &[(&str, &str)] = &[
+    (
+        "backend/Cargo.toml",
+        "[workspace]\nmembers = [\"crates/*\"]\n",
+    ),
+    ("backend/crates/db/Cargo.toml", "[package]\nname = \"db\"\n"),
+    ("backend/crates/db/src/lib.rs", "pub fn a() {}\n"),
+    ("backend/migrations/0001_init.sql", "create table a ();\n"),
+    (
+        "frontend/package.json",
+        r#"{"scripts": {"test": "vitest run", "lint": "eslint .", "format:check": "prettier --check .", "coverage": "vitest run --coverage", "build": "vite build", "check:bundle": "node size.mjs"}}"#,
+    ),
+    ("frontend/src/App.tsx", "export {};\n"),
+    (
+        ".github/workflows/ci.yml",
+        "jobs:\n  backend:\n    steps:\n      - uses: actions/checkout@v4\n      - run: cargo fmt --all -- --check\n        working-directory: backend\n      - name: Test\n        working-directory: backend\n        run: cargo llvm-cov --workspace\n  frontend:\n    defaults:\n      run:\n        working-directory: frontend\n    steps:\n      - run: npm ci\n      - run: npm run lint\n      - run: npm run format:check\n      - run: npm run coverage\n      - run: npm run build\n      - run: npm run check:bundle\n      - run: npx playwright install --with-deps chromium\n",
+    ),
+];
+
+#[test]
+fn ci_checks_run_where_ci_runs_them() {
+    let w = World::new(SPLIT);
+    let at = |plan: &Value| -> Vec<(String, String)> {
+        plan["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                (
+                    c["command"].as_str().unwrap().to_owned(),
+                    c["dir"].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect()
+    };
+    let pairs = |v: &[(&str, &str)]| -> Vec<(String, String)> {
+        v.iter()
+            .map(|(a, b)| ((*a).to_owned(), (*b).to_owned()))
+            .collect()
+    };
+    // The full suite is CI's checks, in CI's directories, with the build
+    // before what reads it, and without setup.
+    assert_eq!(
+        at(&w.json(&["plan", "--all"], 0)),
+        pairs(&[
+            ("cargo fmt --all -- --check", "backend"),
+            ("cargo llvm-cov --workspace", "backend"),
+            ("npm run lint", "frontend"),
+            ("npm run format:check", "frontend"),
+            ("npm run coverage", "frontend"),
+            ("npm run build", "frontend"),
+            ("npm run check:bundle", "frontend"),
+        ])
+    );
+    // A frontend change gets the checks CI runs in that package.
+    w.write("frontend/src/App.tsx", "export const a = 1;\n");
+    assert_eq!(
+        at(&w.json(&["plan"], 0)),
+        pairs(&[
+            ("npm run lint", "frontend"),
+            ("npm run format:check", "frontend"),
+            ("npm test", "frontend"),
+        ])
+    );
+    // A migration in the Cargo workspace tests the workspace, not the
+    // whole suite.
+    w.git(&["checkout", "-q", "--", "."]);
+    w.write("backend/migrations/0002_b.sql", "create table b ();\n");
+    let plan = w.json(&["plan"], 0);
+    assert_eq!(plan["full"], false, "{plan}");
+    assert_eq!(
+        at(&plan),
+        pairs(&[
+            ("cargo test --workspace", "backend"),
+            ("cargo fmt --all -- --check", "backend"),
+        ])
+    );
+}
+
 /// An npm package whose test script is a stub: it fails the way vitest does
 /// while `$HOME/fail` exists.
 fn npm_world() -> World {

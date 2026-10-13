@@ -59,6 +59,20 @@ pub struct NpmPkg {
 pub struct CiCheck {
     pub file: String,
     pub command: String,
+    /// Repo-relative directory it runs in (`""` for the root).
+    pub dir: String,
+    /// The job it's in, and the build an earlier step of that job runs,
+    /// whose output it may read (`npm run build`).
+    pub job: String,
+    pub after: Option<String>,
+}
+
+/// One command a CI step runs, where, and in which job.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CiStep {
+    pub job: String,
+    pub dir: String,
+    pub command: String,
 }
 
 /// Reads the project from `root`'s tracked files.
@@ -150,13 +164,28 @@ pub fn detect(root: &Path, tracked: &[String]) -> Project {
             l.deny_warnings |= deny;
         }
         if workflow {
-            for command in ci_commands(&read(f)) {
-                if is_check_command(&command) {
+            let mut built: Vec<(String, String)> = Vec::new();
+            for step in ci_steps(&read(f)) {
+                if is_build_command(&step.command) {
+                    built.retain(|(j, _)| *j != step.job);
+                    built.push((step.job.clone(), step.command.clone()));
+                }
+                if is_check_command(&step.command) {
                     let c = CiCheck {
                         file: f.clone(),
-                        command,
+                        after: built
+                            .iter()
+                            .find(|(j, _)| *j == step.job)
+                            .map(|(_, b)| b.clone()),
+                        command: step.command,
+                        dir: step.dir,
+                        job: step.job,
                     };
-                    if !p.ci.contains(&c) {
+                    if !p
+                        .ci
+                        .iter()
+                        .any(|x| x.command == c.command && x.dir == c.dir)
+                    {
                         p.ci.push(c);
                     }
                 }
@@ -358,35 +387,146 @@ fn make_targets(text: &str) -> Vec<String> {
 /// `run:` steps from a GitHub workflow, and `script:` items from GitLab CI,
 /// one command per line.
 pub fn ci_commands(text: &str) -> Vec<String> {
+    ci_steps(text).into_iter().map(|s| s.command).collect()
+}
+
+/// Each command CI runs, one per line, with its job and the directory it
+/// runs in: the step's `working-directory`, else the job's
+/// `defaults.run.working-directory`, else the root. GitLab's `script:`
+/// items run at the root.
+pub fn ci_steps(text: &str) -> Vec<CiStep> {
+    struct Step {
+        commands: Vec<String>,
+        dir: Option<String>,
+    }
     let mut out = Vec::new();
+    let mut job = String::new();
+    let mut job_dir = String::new();
+    // Indent of the keys under `jobs:`, once seen.
+    let mut job_indent: Option<usize> = None;
+    let mut in_jobs = false;
+    // Indent of a step's `- `, and the step being read.
+    let mut dash: Option<usize> = None;
+    let mut step: Option<Step> = None;
+    // The column of a `run: |` key: deeper lines are its script.
     let mut block: Option<usize> = None;
+    let flush = |step: &mut Option<Step>, job: &str, job_dir: &str, out: &mut Vec<CiStep>| {
+        if let Some(s) = step.take() {
+            let dir = s.dir.unwrap_or_else(|| job_dir.to_owned());
+            out.extend(s.commands.into_iter().map(|command| CiStep {
+                job: job.to_owned(),
+                dir: dir.clone(),
+                command,
+            }));
+        }
+    };
     for line in text.lines() {
         let indent = line.len() - line.trim_start().len();
         let t = line.trim();
-        if let Some(min) = block {
-            if t.is_empty() {
-                continue;
-            }
-            if indent > min {
-                out.push(t.trim_start_matches("- ").to_owned());
+        if t.is_empty() || t.starts_with('#') {
+            continue;
+        }
+        if let Some(col) = block {
+            if indent > col {
+                let cmd = t.trim_start_matches("- ").to_owned();
+                step.get_or_insert(Step {
+                    commands: Vec::new(),
+                    dir: None,
+                })
+                .commands
+                .push(cmd);
                 continue;
             }
             block = None;
         }
-        let body = t.strip_prefix("- ").unwrap_or(t);
-        if let Some(cmd) = body
-            .strip_prefix("run:")
-            .or_else(|| body.strip_prefix("script:"))
+        if indent == 0 {
+            flush(&mut step, &job, &job_dir, &mut out);
+            in_jobs = t == "jobs:";
+            dash = None;
+            // GitLab: top-level keys are jobs.
+            if !in_jobs && t.ends_with(':') {
+                job = t.trim_end_matches(':').to_owned();
+                job_dir.clear();
+            }
+            continue;
+        }
+        if in_jobs
+            && job_indent.is_none_or(|j| j == indent)
+            && t.ends_with(':')
+            && !t.starts_with("- ")
         {
+            flush(&mut step, &job, &job_dir, &mut out);
+            job_indent = Some(indent);
+            job = t.trim_end_matches(':').to_owned();
+            job_dir.clear();
+            dash = None;
+            continue;
+        }
+        let (body, col) = match t.strip_prefix("- ") {
+            Some(rest) => {
+                if dash.is_none_or(|d| d == indent) {
+                    flush(&mut step, &job, &job_dir, &mut out);
+                    dash = Some(indent);
+                    step = Some(Step {
+                        commands: Vec::new(),
+                        dir: None,
+                    });
+                }
+                (rest, indent + 2)
+            }
+            None => (t, indent),
+        };
+        if dash.is_some_and(|d| indent < d) {
+            // Back out of the steps list, into the job's other keys.
+            flush(&mut step, &job, &job_dir, &mut out);
+            dash = None;
+        }
+        if let Some(dir) = body.strip_prefix("working-directory:") {
+            let dir = dir
+                .trim()
+                .trim_matches(['"', '\''])
+                .trim_start_matches("./");
+            let dir = match dir.trim_end_matches('/') {
+                "." => String::new(),
+                d => d.to_owned(),
+            };
+            match step.as_mut() {
+                Some(s) if dash.is_some() => s.dir = Some(dir),
+                _ => job_dir = dir,
+            }
+            continue;
+        }
+        let run = body.strip_prefix("run:");
+        if let Some(cmd) = run.or_else(|| body.strip_prefix("script:")) {
             let cmd = cmd.trim();
+            if cmd.is_empty() && run.is_some() {
+                // `defaults: run:` is a mapping, not a script.
+                continue;
+            }
             if cmd.is_empty() || cmd.starts_with('|') || cmd.starts_with('>') {
-                block = Some(indent);
+                block = Some(col);
             } else {
-                out.push(cmd.trim_matches(['"', '\'']).to_owned());
+                step.get_or_insert(Step {
+                    commands: Vec::new(),
+                    dir: None,
+                })
+                .commands
+                .push(cmd.trim_matches(['"', '\'']).to_owned());
             }
         }
     }
+    flush(&mut step, &job, &job_dir, &mut out);
     out
+}
+
+/// Whether a command builds output a later check may read.
+fn is_build_command(cmd: &str) -> bool {
+    let words: Vec<&str> = cmd.split_whitespace().collect();
+    matches!(
+        words.as_slice(),
+        ["npm" | "pnpm" | "yarn" | "bun", "run", "build", ..]
+            | ["npm" | "pnpm" | "yarn" | "bun", "build", ..]
+    )
 }
 
 /// Whether a command runs tests, linters, or type checks, as opposed to
@@ -409,16 +549,25 @@ pub fn is_check_command(cmd: &str) -> bool {
         "e2e",
         "vet",
     ];
+    // `format:check` checks; `format` alone rewrites files.
+    let script = |s: &str| {
+        SCRIPTS.iter().any(|x| s.starts_with(x))
+            || s.starts_with("coverage")
+            || (s.starts_with("format") && s.contains("check"))
+    };
     match first {
         "cargo" => matches!(
             second,
-            "test" | "clippy" | "fmt" | "check" | "xtask" | "nextest"
+            "test" | "clippy" | "fmt" | "check" | "xtask" | "nextest" | "llvm-cov" | "tarpaulin"
         ),
         "npm" | "pnpm" | "yarn" | "bun" => {
-            SCRIPTS.contains(&second)
-                || (second == "run" && SCRIPTS.iter().any(|s| third.starts_with(s)))
+            SCRIPTS.contains(&second) || (second == "run" && script(third))
         }
-        "npx" => matches!(second, "vitest" | "jest" | "tsc" | "eslint" | "playwright"),
+        // `npx playwright install` sets up browsers; it isn't a check.
+        "npx" => {
+            matches!(second, "vitest" | "jest" | "tsc" | "eslint" | "playwright")
+                && !third.starts_with("install")
+        }
         "go" => matches!(second, "test" | "vet"),
         "pytest" | "ruff" | "mypy" | "tsc" | "eslint" | "vitest" | "jest" | "golangci-lint" => true,
         "python" | "python3" => {
@@ -481,6 +630,27 @@ mod tests {
     }
 
     #[test]
+    fn reads_ci_working_directories_and_jobs() {
+        let gh = "jobs:\n  backend:\n    runs-on: x\n    steps:\n      - uses: actions/checkout@v4\n      - run: cargo fmt --all -- --check\n        working-directory: backend\n      - name: Test\n        working-directory: ./backend/\n        run: cargo test\n      - run: |\n          echo one\n          echo two\n        working-directory: scripts\n  frontend:\n    defaults:\n      run:\n        working-directory: frontend\n    steps:\n      - run: npm ci\n      - run: npm run build\n      - run: npm run check:bundle\n      - run: echo root\n        working-directory: .\n";
+        let got: Vec<(String, String, String)> = ci_steps(gh)
+            .into_iter()
+            .map(|s| (s.job, s.dir, s.command))
+            .collect();
+        let want = [
+            ("backend", "backend", "cargo fmt --all -- --check"),
+            ("backend", "backend", "cargo test"),
+            ("backend", "scripts", "echo one"),
+            ("backend", "scripts", "echo two"),
+            ("frontend", "frontend", "npm ci"),
+            ("frontend", "frontend", "npm run build"),
+            ("frontend", "frontend", "npm run check:bundle"),
+            ("frontend", "", "echo root"),
+        ]
+        .map(|(a, b, c)| (a.to_owned(), b.to_owned(), c.to_owned()));
+        assert_eq!(got, want);
+    }
+
+    #[test]
     fn tells_checks_from_setup() {
         for c in [
             "cargo xtask check",
@@ -490,6 +660,9 @@ mod tests {
             "python -m pytest -q",
             "make check",
             "npx vitest run",
+            "cargo llvm-cov --workspace --fail-under-lines 90",
+            "npm run coverage",
+            "npm run format:check",
         ] {
             assert!(is_check_command(c), "{c}");
         }
@@ -499,6 +672,8 @@ mod tests {
             "echo hi",
             "pip install -r req.txt",
             "make install",
+            "npx playwright install --with-deps chromium",
+            "npm run format",
         ] {
             assert!(!is_check_command(c), "{c}");
         }

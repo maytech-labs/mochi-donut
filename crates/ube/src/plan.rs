@@ -56,10 +56,7 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
     let mut unmatched = Vec::new();
     let mut docs: Vec<String> = Vec::new();
     let add = |checks: &mut Vec<Check>, c: Check| {
-        if !checks
-            .iter()
-            .any(|x| x.command == c.command && x.dir == c.dir)
-        {
+        if !checks.iter().any(|x| same_check(x, &c)) {
             checks.push(c);
         }
     };
@@ -78,6 +75,7 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
             if project.cargo_root.is_some() {
                 if matches!(name, "Cargo.lock" | "rust-toolchain.toml")
                     || (name == "Cargo.toml" && dir == cargo_root)
+                    || workspace_file(file, &cargo_root, &project.cargo)
                 {
                     add(
                         &mut checks,
@@ -114,10 +112,27 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
                 }
             }
 
-            // npm: the nearest package.json's test and lint scripts.
+            // npm: the nearest package.json's test and lint scripts, and the
+            // checks CI runs in it.
             if let Some(pkg) = nearest(project.npm.iter().map(|p| p.dir.as_str()), file)
                 .and_then(|d| project.npm.iter().find(|p| p.dir == d))
             {
+                for c in npm_ci_checks(project, &pkg.dir) {
+                    add(
+                        &mut checks,
+                        Check {
+                            command: c.command.clone(),
+                            dir: pkg.dir.clone(),
+                            reason: format!(
+                                "{file} is in the package at {}; CI runs it there ({})",
+                                display_dir(&pkg.dir),
+                                c.file
+                            ),
+                            tests: false,
+                        },
+                    );
+                    matched = true;
+                }
                 for script in ["test", "lint", "typecheck", "check"] {
                     if pkg.scripts.iter().any(|s| s == script) {
                         let command = match (pkg.manager, script) {
@@ -220,7 +235,20 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
         );
     }
 
-    for c in rust_lints(project, &linted, &cargo_root) {
+    for mut c in rust_lints(project, &linted, &cargo_root) {
+        // The repo's own spelling, when CI runs the same check.
+        if let Some(ci) = project.ci.iter().find(|ci| {
+            same_check(
+                &c,
+                &Check {
+                    command: ci.command.clone(),
+                    dir: ci.dir.clone(),
+                    ..c.clone()
+                },
+            )
+        }) {
+            c.command.clone_from(&ci.command);
+        }
         add(&mut checks, c);
     }
 
@@ -251,7 +279,7 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
         }
     } else {
         for c in &full_suite {
-            if !checks.iter().any(|x| x.command == c.command) {
+            if !checks.iter().any(|x| same_check(x, c)) {
                 left_out.push(LeftOut {
                     command: c.command.clone(),
                     why: format!("{}; ube plan --all includes it", c.reason),
@@ -323,16 +351,30 @@ fn rust_lints(project: &Project, packages: &[Option<&str>], dir: &str) -> Vec<Ch
 /// check`, else `make test`.
 fn full_suite(project: &Project) -> Vec<Check> {
     if !project.ci.is_empty() {
-        return project
-            .ci
-            .iter()
-            .map(|c| Check {
+        let mut out: Vec<Check> = Vec::new();
+        for c in &project.ci {
+            // A check that reads a build's output runs after that build.
+            if let Some(build) = &c.after {
+                let b = Check {
+                    command: build.clone(),
+                    dir: c.dir.clone(),
+                    reason: format!("CI builds before {} ({})", c.command, c.file),
+                    tests: false,
+                };
+                if !out.iter().any(|x| same_check(x, &b)) {
+                    out.push(b);
+                }
+            }
+            out.push(Check {
                 command: c.command.clone(),
-                dir: String::new(),
+                dir: c.dir.clone(),
                 reason: format!("CI runs it ({})", c.file),
-                tests: c.command.contains("test") || c.command.contains("check"),
-            })
-            .collect();
+                tests: ["test", "check", "cov"]
+                    .iter()
+                    .any(|w| c.command.contains(w)),
+            });
+        }
+        return out;
     }
     ["check", "test"]
         .iter()
@@ -345,6 +387,52 @@ fn full_suite(project: &Project) -> Vec<Check> {
         })
         .into_iter()
         .collect()
+}
+
+/// Check scripts CI runs in the npm package at `dir`, beyond the usual
+/// test, lint, typecheck, and check: `format:check`, `check:api`. Not
+/// coverage (the same tests as `test`), and not ones that run after a build
+/// in their job, since they may read its output.
+fn npm_ci_checks<'a>(project: &'a Project, dir: &str) -> Vec<&'a crate::detect::CiCheck> {
+    project
+        .ci
+        .iter()
+        .filter(|c| c.dir == dir && c.after.is_none())
+        .filter(|c| {
+            let w: Vec<&str> = c.command.split_whitespace().collect();
+            matches!(w.as_slice(), ["npm" | "pnpm" | "yarn" | "bun", "run", s, ..] if !s.starts_with("coverage"))
+        })
+        .collect()
+}
+
+/// Whether two checks are the same command in the same place, however its
+/// words are ordered: `cargo fmt --all -- --check` is `cargo fmt --check --all`.
+fn same_check(a: &Check, b: &Check) -> bool {
+    fn words(c: &str) -> Vec<&str> {
+        let mut w: Vec<&str> = c.split_whitespace().filter(|w| *w != "--").collect();
+        w.sort_unstable();
+        w
+    }
+    a.dir == b.dir && (a.command == b.command || words(&a.command) == words(&b.command))
+}
+
+/// Whether `file` sits in the Cargo workspace outside every package and
+/// affects how all of them build or lint: sqlx's offline query data,
+/// clippy and rustfmt config, Cargo config.
+fn workspace_file(file: &str, root: &str, pkgs: &[CargoPkg]) -> bool {
+    if !under(file, root) || owner(pkgs, file).is_some_and(|p| p.dir != root) {
+        return false;
+    }
+    let rel = strip_dir(file, root);
+    // Under a Cargo workspace, migrations are sqlx's, diesel's, or
+    // refinery's, embedded in the build.
+    rel.starts_with(".sqlx/")
+        || rel.starts_with(".cargo/")
+        || rel.starts_with("migrations/")
+        || matches!(
+            rel,
+            "clippy.toml" | ".clippy.toml" | "rustfmt.toml" | ".rustfmt.toml"
+        )
 }
 
 /// The Cargo package whose directory holds `file`: the deepest one.
@@ -447,6 +535,9 @@ mod tests {
             ci: vec![CiCheck {
                 file: ".github/workflows/ci.yml".into(),
                 command: "cargo xtask check".into(),
+                dir: String::new(),
+                job: "check".into(),
+                after: None,
             }],
             rust_lints: RustLints::default(),
         }
@@ -517,6 +608,84 @@ mod tests {
                 "cargo clippy --workspace --all-targets -- -D warnings"
             ]
         );
+    }
+
+    #[test]
+    fn npm_packages_get_the_checks_ci_runs_in_them() {
+        let mut pr = project();
+        let ci = |command: &str, dir: &str, after_build: bool| CiCheck {
+            file: ".github/workflows/ci.yml".into(),
+            command: command.into(),
+            dir: dir.into(),
+            job: "frontend".into(),
+            after: after_build.then(|| "npm run build".to_owned()),
+        };
+        pr.ci = vec![
+            ci("npm run lint", "web", false),
+            ci("npm run format:check", "web", false),
+            ci("npm run coverage", "web", false),
+            ci("npm run check:bundle", "web", true),
+            ci("npm run check:api", "other", false),
+        ];
+        let p = plan(&pr, &["web/src/App.tsx".into()], false, false);
+        assert_eq!(
+            commands(&p),
+            [
+                "npm run lint",
+                "npm run format:check",
+                "pnpm test",
+                "pnpm run lint"
+            ]
+        );
+        assert!(p.checks[1].reason.contains("CI runs it there"));
+        assert_eq!(p.checks[1].dir, "web");
+        // The full suite runs where CI does, building before what reads
+        // the build.
+        let p = plan(&pr, &[], true, false);
+        assert!(p.checks.iter().all(|c| c.dir == "web" || c.dir == "other"));
+        let at = |cmd: &str| commands(&p).iter().position(|c| *c == cmd).unwrap();
+        assert!(at("npm run build") < at("npm run check:bundle"));
+    }
+
+    #[test]
+    fn rust_workspace_files_outside_packages_test_the_workspace() {
+        let mut pr = project();
+        pr.cargo_root = Some("backend".into());
+        for c in &mut pr.cargo {
+            c.dir = format!("backend/{}", c.dir);
+        }
+        for f in [
+            "backend/.sqlx/query-1.json",
+            "backend/clippy.toml",
+            "backend/migrations/2026_x.sql",
+        ] {
+            let p = plan(&pr, &[f.to_owned()], false, false);
+            assert_eq!(commands(&p), ["cargo test --workspace"], "{f}");
+            assert_eq!(p.checks[0].dir, "backend");
+        }
+        // Inside a package, it's that package's.
+        let p = plan(
+            &pr,
+            &["backend/crates/yuzu/.sqlx/q.json".into()],
+            false,
+            false,
+        );
+        assert_eq!(commands(&p), ["cargo test -p mochi-yuzu"]);
+    }
+
+    #[test]
+    fn the_same_check_spelled_differently_runs_once() {
+        let c = |cmd: &str| Check {
+            command: cmd.into(),
+            dir: "backend".into(),
+            reason: String::new(),
+            tests: false,
+        };
+        assert!(same_check(
+            &c("cargo fmt --all -- --check"),
+            &c("cargo fmt --check --all")
+        ));
+        assert!(!same_check(&c("cargo test -p a"), &c("cargo test -p b")));
     }
 
     #[test]
