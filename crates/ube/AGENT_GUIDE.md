@@ -3,7 +3,7 @@ ube: the change in hand. Which checks apply, and whether they passed on this cod
 When to run what
   Before testing a change            ube plan                 the repo's own checks that apply, and why
   To test it                         ube run                  runs them; each failure in a few lines with a rerun command
-  After a failure, once fixed        ube run --rerun-failed   just what failed last time on this code
+  After a failure, once fixed        ube run --rerun-failed   just what failed in the last run
   Before saying it's done            ube done                 checks passed on THIS code, tests changed, no missing companion,
                                                               no doc made false, no assumed claim in a doc
   To see if the tests can fail       ube mutate               flips operators in changed lines; survivors are unproven lines
@@ -17,7 +17,9 @@ Reading results
 Flags on every command
   --json         one JSON object on stdout
   --repo PATH    the repo (default: the one containing the current directory)
-  --base REV     compare against this instead of HEAD (plan, run, done, mutate)
+  --base REV     compare against where HEAD left REV (plan, run, done, mutate).
+                 Default: where this branch left the default branch, so
+                 committed work counts; HEAD on the default branch
 
 Exit codes
   0  nothing wrong      1  a check failed, not done, or a mutation survived

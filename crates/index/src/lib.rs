@@ -25,6 +25,14 @@ pub enum IndexError {
     Git { args: String, stderr: String },
 }
 
+/// The commit a branch's change is measured from, and the branch or
+/// revision it was found from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Base {
+    pub commit: String,
+    pub name: String,
+}
+
 /// The root of a git repository: the directory that holds `.git`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepoRoot(PathBuf);
@@ -111,6 +119,95 @@ impl RepoRoot {
         )?;
         let name = out.trim();
         Ok((!name.is_empty()).then(|| name.to_owned()))
+    }
+
+    /// Where the work on `HEAD` started: the commit a change should be
+    /// compared against, and what to call it.
+    ///
+    /// With `given`, its merge-base with `HEAD`, so commits that landed on
+    /// `given` since the branch started aren't counted as the branch's.
+    /// Without it, the merge-base with the repo's default branch (a
+    /// remote's `HEAD`, else a local `main` or `master`) when `HEAD` is on
+    /// another branch with commits of its own. `None` means compare against
+    /// `HEAD`: there's nothing committed to count.
+    pub fn branch_base(&self, given: Option<&str>) -> Result<Option<Base>, IndexError> {
+        if !git::has_head(self.path()) {
+            return match given {
+                Some(g) => Err(IndexError::Git {
+                    args: format!("merge-base {g} HEAD"),
+                    stderr: "the repo has no commits yet".into(),
+                }),
+                None => Ok(None),
+            };
+        }
+        let merge_base = |rev: &str| -> Result<Option<String>, IndexError> {
+            let out = git::run_ok(self.path(), &["merge-base", rev, "HEAD"], &[0, 1])?;
+            Ok(Some(out.trim().to_owned()).filter(|s| !s.is_empty()))
+        };
+        if let Some(g) = given {
+            git::run(
+                self.path(),
+                &["rev-parse", "--verify", "-q", &format!("{g}^{{commit}}")],
+            )?;
+            let commit = merge_base(g)?.ok_or_else(|| IndexError::Git {
+                args: format!("merge-base {g} HEAD"),
+                stderr: format!("{g} and HEAD share no history"),
+            })?;
+            return Ok(Some(Base {
+                commit,
+                name: g.to_owned(),
+            }));
+        }
+        let Some(branch) = self.current_branch()? else {
+            return Ok(None);
+        };
+        let mut candidates: Vec<String> = Vec::new();
+        for remote in git::run(self.path(), &["remote"])?.lines() {
+            let head = format!("refs/remotes/{remote}/HEAD");
+            let out = git::run_ok(
+                self.path(),
+                &["symbolic-ref", "--short", "-q", &head],
+                &[0, 1],
+            )?;
+            if !out.trim().is_empty() {
+                candidates.push(out.trim().to_owned());
+            }
+        }
+        for local in ["main", "master"] {
+            let r = format!("refs/heads/{local}");
+            if !git::run_ok(self.path(), &["rev-parse", "--verify", "-q", &r], &[0, 1])?
+                .trim()
+                .is_empty()
+            {
+                candidates.push(local.to_owned());
+            }
+        }
+        let short = |c: &str| c.rsplit_once('/').map_or(c, |(_, b)| b).to_owned();
+        if candidates
+            .iter()
+            .any(|c| *c == branch || short(c) == branch)
+        {
+            return Ok(None);
+        }
+        // The candidate whose merge-base is closest to HEAD: a stale local
+        // main would otherwise count other people's commits as ours.
+        let mut best: Option<(usize, Base)> = None;
+        for c in candidates {
+            let Some(commit) = merge_base(&c)? else {
+                continue;
+            };
+            let ahead: usize = git::run(
+                self.path(),
+                &["rev-list", "--count", &format!("{commit}..HEAD")],
+            )?
+            .trim()
+            .parse()
+            .unwrap_or(usize::MAX);
+            if best.as_ref().is_none_or(|(n, _)| ahead < *n) {
+                best = Some((ahead, Base { commit, name: c }));
+            }
+        }
+        Ok(best.filter(|(n, _)| *n > 0).map(|(_, b)| b))
     }
 
     /// Files the working tree changes relative to `base` (default `HEAD`),
@@ -372,6 +469,54 @@ mod tests {
             .unwrap()
             .success();
         assert!(ok, "git {args:?}");
+    }
+
+    #[test]
+    fn branch_base_is_where_the_branch_started() {
+        let repo = tempfile::tempdir().unwrap();
+        let p = repo.path();
+        git(p, &["init", "-q", "-b", "main"]);
+        std::fs::write(p.join("a.txt"), "a\n").unwrap();
+        git(p, &["add", "-A"]);
+        git(p, &["commit", "-q", "-m", "a"]);
+        let root = RepoRoot::discover(p).unwrap();
+        // On main: compare against HEAD.
+        assert_eq!(root.branch_base(None).unwrap(), None);
+
+        git(p, &["checkout", "-q", "-b", "feat"]);
+        let fork = rev(p, "HEAD");
+        // A new branch with no commits of its own: HEAD too.
+        assert_eq!(root.branch_base(None).unwrap(), None);
+        std::fs::write(p.join("b.txt"), "b\n").unwrap();
+        git(p, &["add", "-A"]);
+        git(p, &["commit", "-q", "-m", "b"]);
+        // main moves on after the branch started.
+        git(p, &["checkout", "-q", "main"]);
+        std::fs::write(p.join("c.txt"), "c\n").unwrap();
+        git(p, &["add", "-A"]);
+        git(p, &["commit", "-q", "-m", "c"]);
+        git(p, &["checkout", "-q", "feat"]);
+
+        let base = root.branch_base(None).unwrap().unwrap();
+        assert_eq!(
+            (base.commit.as_str(), base.name.as_str()),
+            (fork.as_str(), "main")
+        );
+        let given = root.branch_base(Some("main")).unwrap().unwrap();
+        assert_eq!(given.commit, fork);
+        // Only the branch's own file, not main's later c.txt.
+        assert_eq!(root.changed_files(Some(&base.commit)).unwrap(), ["b.txt"]);
+        assert!(root.branch_base(Some("nope")).is_err());
+    }
+
+    fn rev(dir: &Path, r: &str) -> String {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(["rev-parse", r])
+            .output()
+            .unwrap();
+        String::from_utf8(out.stdout).unwrap().trim().to_owned()
     }
 
     #[test]

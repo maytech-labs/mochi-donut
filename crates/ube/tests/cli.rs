@@ -160,6 +160,121 @@ fn plan_falls_back_to_the_full_suite_and_says_why() {
         ));
 }
 
+/// A workspace in the newer style: members take path dependencies from
+/// `[workspace.dependencies]`, and CI checks formatting and clippy.
+const INHERITED: &[(&str, &str)] = &[
+    (
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"crates/*\"]\n\n[workspace.dependencies]\ncore = { path = \"crates/core\" }\n",
+    ),
+    ("crates/core/Cargo.toml", "[package]\nname = \"core\"\n"),
+    ("crates/core/src/lib.rs", "pub fn a() {}\n"),
+    (
+        "crates/app/Cargo.toml",
+        "[package]\nname = \"app\"\n\n[dependencies]\ncore.workspace = true\n",
+    ),
+    ("crates/app/src/main.rs", "fn main() {}\n"),
+    (
+        ".github/workflows/ci.yml",
+        "jobs:\n  ci:\n    steps:\n      - run: cargo fmt --all --check\n      - run: cargo clippy --workspace --all-targets -- -D warnings\n      - run: cargo test --workspace\n",
+    ),
+];
+
+#[test]
+fn plan_follows_workspace_deps_and_runs_the_repos_lints() {
+    let w = World::new(INHERITED);
+    w.write("crates/core/src/lib.rs", "pub fn a() { let _ = 1; }\n");
+    let plan = w.json(&["plan"], 0);
+    assert_eq!(
+        commands(&plan),
+        [
+            "cargo test -p core",
+            "cargo test -p app",
+            "cargo fmt --check -p core",
+            "cargo clippy -p core --all-targets -- -D warnings"
+        ]
+    );
+    assert!(
+        plan["checks"][3]["reason"]
+            .as_str()
+            .unwrap()
+            .contains(".github/workflows/ci.yml runs clippy")
+    );
+    // Without lints declared, a Rust change gets tests only.
+    let w = World::new(WORKSPACE);
+    w.write("crates/app/src/main.rs", "fn main() { }\n");
+    assert_eq!(commands(&w.json(&["plan"], 0)), ["cargo test -p app"]);
+}
+
+#[test]
+fn a_committed_branch_is_measured_from_where_it_started() {
+    let w = npm_world();
+    w.git(&["checkout", "-q", "-b", "feat"]);
+    w.write("web/src/money.ts", "export const cents = 2;\n");
+    w.git(&["commit", "-q", "-am", "feat: cents"]);
+    // main moves on after the branch started; that isn't the branch's change.
+    w.git(&["checkout", "-q", "main"]);
+    w.write("docs/later.md", "later\n");
+    w.git(&["add", "-A"]);
+    w.git(&["commit", "-q", "-m", "docs: later"]);
+    w.git(&["checkout", "-q", "feat"]);
+
+    // Everything is committed, but the change still needs proof.
+    let plan = w.json(&["plan"], 0);
+    assert_eq!(plan["changed"], json!(["web/src/money.ts"]));
+    assert_eq!(plan["base"]["name"], "main");
+    assert_eq!(commands(&plan), ["npm test"]);
+    let given = w.json(&["plan", "--base", "main"], 0);
+    assert_eq!(given["changed"], json!(["web/src/money.ts"]));
+    w.ube()
+        .arg("done")
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("1 file changed against main"))
+        .stdout(predicate::str::contains("not run on this tree"));
+    // The Stop hook sees committed work too.
+    let hook = json!({"cwd": w.repo(), "hook_event_name": "Stop", "stop_hook_active": false});
+    w.ube()
+        .args(["hook", "claude-code"])
+        .write_stdin(hook.to_string())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"decision\":\"block\""));
+    w.ube().arg("run").assert().code(0);
+    assert_eq!(w.json(&["done"], 0)["done"], true);
+
+    // On main itself, only uncommitted changes count.
+    w.git(&["checkout", "-q", "main"]);
+    assert_eq!(w.json(&["plan"], 0)["changed"], json!([]));
+    w.ube()
+        .args(["plan", "--base", "nope"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("Can't compare against nope"));
+}
+
+#[test]
+fn rerun_failed_reruns_after_the_code_is_fixed() {
+    let w = npm_world();
+    // This npm fails while the code has the bug.
+    w.stub(
+        "npm",
+        "if grep -q BUG src/money.ts; then echo ' FAIL  src/money.test.ts > cents > is right 1ms'; echo 'AssertionError: no'; echo ' ❯ src/money.test.ts:2:3'; exit 1; fi\necho ok",
+    );
+    w.write("web/src/money.ts", "export const cents = 2; // BUG\n");
+    w.ube().arg("run").assert().code(1);
+    w.write("web/src/money.ts", "export const cents = 2;\n");
+    let body = w.json(&["run", "--rerun-failed"], 0);
+    assert_eq!(body["passed"], true, "{body}");
+    assert_eq!(body["results"][0]["command"], "npm test");
+    // Nothing failed in that run, so there's nothing left to rerun.
+    w.ube()
+        .args(["run", "--rerun-failed"])
+        .assert()
+        .code(0)
+        .stdout(predicate::str::contains("Nothing failed in the last run"));
+}
+
 /// An npm package whose test script is a stub: it fails the way vitest does
 /// while `$HOME/fail` exists.
 fn npm_world() -> World {

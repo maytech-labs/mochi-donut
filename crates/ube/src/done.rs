@@ -417,6 +417,7 @@ mod tests {
                 name: "y".into(),
                 dir: "crates/yuzu".into(),
                 deps: vec![],
+                inherited: vec![],
             }],
             ..Project::default()
         };

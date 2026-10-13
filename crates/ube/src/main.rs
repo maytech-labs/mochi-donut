@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use clap::{Args, Parser, Subcommand};
 use mochi_common::{Format, exit, print_json};
-use mochi_index::RepoRoot;
+use mochi_index::{Base, RepoRoot};
 
 const AGENT_GUIDE: &str = include_str!("../AGENT_GUIDE.md");
 
@@ -50,7 +50,8 @@ enum Command {
     Run(RunArgs),
     /// Is this change done? A checklist for the exact current code.
     Done {
-        /// Compare against this commit or branch instead of HEAD.
+        /// Compare against where HEAD left this branch or commit. Default:
+        /// where this branch left the default branch, else HEAD.
         #[arg(long, value_name = "REV")]
         base: Option<String>,
     },
@@ -76,7 +77,8 @@ enum HookAgent {
 
 #[derive(Debug, Args)]
 struct Scope {
-    /// Compare against this commit or branch instead of HEAD.
+    /// Compare against where HEAD left this branch or commit. Default:
+    /// where this branch left the default branch, else HEAD.
     #[arg(long, value_name = "REV")]
     base: Option<String>,
     /// Plan the full suite, not a selection.
@@ -88,7 +90,7 @@ struct Scope {
 struct RunArgs {
     #[command(flatten)]
     scope: Scope,
-    /// Rerun only the checks that failed last time on this code.
+    /// Rerun only the checks that failed in the last run, even after edits.
     #[arg(long)]
     rerun_failed: bool,
     /// Stop a check after this many seconds.
@@ -101,7 +103,8 @@ struct RunArgs {
 
 #[derive(Debug, Args)]
 struct MutateArgs {
-    /// Compare against this commit or branch instead of HEAD.
+    /// Compare against where HEAD left this branch or commit. Default:
+    /// where this branch left the default branch, else HEAD.
     #[arg(long, value_name = "REV")]
     base: Option<String>,
     /// Only mutate lines in these files or directories. Repeatable.
@@ -162,6 +165,10 @@ fn err(e: mochi_index::IndexError) -> String {
     e.to_string()
 }
 
+fn files(n: usize) -> String {
+    format!("{n} {}", if n == 1 { "file" } else { "files" })
+}
+
 /// Whether `matcha` is on PATH, for planning docs and recording evidence.
 fn has_matcha() -> bool {
     Process::new("matcha")
@@ -170,13 +177,42 @@ fn has_matcha() -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
+/// The commit to compare against: `given`'s merge-base with HEAD, else
+/// where this branch left the default branch, else `None` for HEAD.
+fn resolve_base(root: &RepoRoot, given: Option<&str>) -> Result<Option<Base>, String> {
+    root.branch_base(given).map_err(|e| match given {
+        Some(g) => format!(
+            "Can't compare against {g}: {e}. Pass a branch or commit HEAD shares history with."
+        ),
+        None => err(e),
+    })
+}
+
+/// How the base reads in output: `main (since a1b2c3d4e5f6)`, or `HEAD`.
+fn base_label(base: Option<&Base>) -> String {
+    base.map_or_else(
+        || "HEAD".to_owned(),
+        |b| format!("{} (since {})", b.name, &b.commit[..12.min(b.commit.len())]),
+    )
+}
+
+fn base_json(base: Option<&Base>) -> serde_json::Value {
+    base.map_or(
+        serde_json::Value::Null,
+        |b| serde_json::json!({ "name": b.name, "commit": b.commit }),
+    )
+}
+
 /// The project, read from tracked files and new ones not yet added (a new
-/// package counts before its first commit), and the changed files.
+/// package counts before its first commit), and the files changed since
+/// `base` (`None`: HEAD).
 fn read_project(
     root: &RepoRoot,
-    base: Option<&str>,
+    base: Option<&Base>,
 ) -> Result<(detect::Project, Vec<String>), String> {
-    let changed = root.changed_files(base).map_err(err)?;
+    let changed = root
+        .changed_files(base.map(|b| b.commit.as_str()))
+        .map_err(err)?;
     let mut files = root.tracked_files().map_err(err)?;
     files.extend(
         changed
@@ -189,22 +225,34 @@ fn read_project(
     Ok((detect::detect(root.path(), &files), changed))
 }
 
-fn make_plan(root: &RepoRoot, base: Option<&str>, all: bool) -> Result<plan::Plan, String> {
+fn make_plan(root: &RepoRoot, base: Option<&Base>, all: bool) -> Result<plan::Plan, String> {
     let (project, changed) = read_project(root, base)?;
     Ok(plan::plan(&project, &changed, all, has_matcha()))
 }
 
 fn cmd_plan(root: &RepoRoot, scope: &Scope, format: Format) -> Result<u8, String> {
-    let p = make_plan(root, scope.base.as_deref(), scope.all)?;
+    let base = resolve_base(root, scope.base.as_deref())?;
+    let p = make_plan(root, base.as_ref(), scope.all)?;
     match format {
-        Format::Json => print_json(&p),
+        Format::Json => {
+            let mut v = serde_json::to_value(&p).map_err(|e| e.to_string())?;
+            v["base"] = base_json(base.as_ref());
+            print_json(&v);
+        }
         Format::Text => {
             if p.changed.is_empty() && !scope.all {
                 println!(
                     "No changes against {}: nothing to check. Use --all for the full suite.",
-                    scope.base.as_deref().unwrap_or("HEAD")
+                    base_label(base.as_ref())
                 );
                 return Ok(exit::OK);
+            }
+            if base.is_some() {
+                println!(
+                    "{} changed against {}:",
+                    files(p.changed.len()),
+                    base_label(base.as_ref())
+                );
             }
             if p.checks.is_empty() {
                 println!(
@@ -232,7 +280,8 @@ fn cmd_run(root: &RepoRoot, args: &RunArgs, format: Format) -> Result<u8, String
     let tree = root.worktree_tree().map_err(err)?;
     let store = store::Store::new(root.path());
     let mut checks = if args.command.is_empty() {
-        make_plan(root, args.scope.base.as_deref(), args.scope.all)?.checks
+        let base = resolve_base(root, args.scope.base.as_deref())?;
+        make_plan(root, base.as_ref(), args.scope.all)?.checks
     } else {
         vec![plan::Check {
             command: args.command.join(" "),
@@ -242,12 +291,11 @@ fn cmd_run(root: &RepoRoot, args: &RunArgs, format: Format) -> Result<u8, String
         }]
     };
     if args.rerun_failed {
-        let last = store.load(&tree);
-        checks.retain(|c| last.get(&c.id()).is_some_and(|r| !r.passed));
+        checks = store.last_failed();
         if checks.is_empty() {
             if format == Format::Text {
                 println!(
-                    "Nothing failed on this code last time. Run without --rerun-failed to run the plan."
+                    "Nothing failed in the last run. Run without --rerun-failed to run the plan."
                 );
             } else {
                 print_json(&serde_json::json!({ "tree": tree, "results": [], "passed": true }));
@@ -287,6 +335,13 @@ fn cmd_run(root: &RepoRoot, args: &RunArgs, format: Format) -> Result<u8, String
     }
     let after = root.worktree_tree().map_err(err)?;
     store.save(&tree, &results)?;
+    let failed: Vec<plan::Check> = checks
+        .iter()
+        .zip(&results)
+        .filter(|(_, (_, r))| !r.passed)
+        .map(|(c, _)| c.clone())
+        .collect();
+    store.save_last_failed(&failed)?;
     let passed = results.iter().all(|(_, r)| r.passed);
     let recorded = passed && record_evidence(root, &tree, &results);
     match format {
@@ -396,20 +451,32 @@ fn record_evidence(root: &RepoRoot, tree: &str, results: &[(String, store::Check
         .is_ok_and(|o| o.status.success())
 }
 
-fn cmd_done(root: &RepoRoot, base: Option<&str>, format: Format) -> Result<u8, String> {
-    let (project, changed) = read_project(root, base)?;
+fn cmd_done(root: &RepoRoot, given: Option<&str>, format: Format) -> Result<u8, String> {
+    let base = resolve_base(root, given)?;
+    let commit = base.as_ref().map(|b| b.commit.as_str());
+    let (project, changed) = read_project(root, base.as_ref())?;
     let p = plan::plan(&project, &changed, false, has_matcha());
     let tree = root.worktree_tree().map_err(err)?;
     let results = store::Store::new(root.path()).load(&tree);
-    let added = root.added_lines(base).map_err(err)?;
+    let added = root.added_lines(commit).map_err(err)?;
     let inline = done::inline_tested(root.path(), &added);
-    let items = done::done(root.path(), &project, &p, &results, base, &inline);
+    let items = done::done(root.path(), &project, &p, &results, commit, &inline);
     let blocked = items.iter().any(|i| i.state == done::State::Fail);
     match format {
-        Format::Json => {
-            print_json(&serde_json::json!({ "tree": tree, "done": !blocked, "items": items }))
-        }
+        Format::Json => print_json(&serde_json::json!({
+            "tree": tree,
+            "base": base_json(base.as_ref()),
+            "done": !blocked,
+            "items": items,
+        })),
         Format::Text => {
+            if base.is_some() {
+                println!(
+                    "{} changed against {}:",
+                    files(changed.len()),
+                    base_label(base.as_ref())
+                );
+            }
             for i in &items {
                 let mark = match i.state {
                     done::State::Ok => "ok  ",
@@ -444,7 +511,8 @@ fn cmd_done(root: &RepoRoot, base: Option<&str>, format: Format) -> Result<u8, S
 /// For the Stop hook: why the agent should keep going, if the change's
 /// checks haven't passed on this exact code.
 fn stop_reason(root: &RepoRoot) -> Option<String> {
-    let (project, changed) = read_project(root, None).ok()?;
+    let base = resolve_base(root, None).ok()?;
+    let (project, changed) = read_project(root, base.as_ref()).ok()?;
     if changed.is_empty() {
         return None;
     }
@@ -469,7 +537,10 @@ fn stop_reason(root: &RepoRoot) -> Option<String> {
 }
 
 fn cmd_mutate(root: &RepoRoot, args: &MutateArgs, format: Format) -> Result<u8, String> {
-    let added = root.added_lines(args.base.as_deref()).map_err(err)?;
+    let base = resolve_base(root, args.base.as_deref())?;
+    let added = root
+        .added_lines(base.as_ref().map(|b| b.commit.as_str()))
+        .map_err(err)?;
     let all = mutate::candidates(&added, &args.paths);
     let count = all.len();
     if all.is_empty() {
@@ -482,7 +553,7 @@ fn cmd_mutate(root: &RepoRoot, args: &MutateArgs, format: Format) -> Result<u8, 
         }
         return Ok(exit::OK);
     }
-    let p = make_plan(root, args.base.as_deref(), false)?;
+    let p = make_plan(root, base.as_ref(), false)?;
     let checks: Vec<plan::Check> = p.checks.into_iter().filter(|c| c.tests).collect();
     if checks.is_empty() {
         return Err("No test checks apply to this change, so there's nothing to run against mutations. See ube plan.".into());

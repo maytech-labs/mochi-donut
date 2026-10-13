@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::parse::Failure;
+use crate::plan::Check;
 
 /// One check's outcome on one tree.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,8 +49,8 @@ impl Store {
             .unwrap_or_default()
     }
 
-    /// Adds `results` for `tree`, replacing earlier ones for the same checks.
-    pub fn save(&self, tree: &str, results: &[(String, CheckResult)]) -> Result<(), String> {
+    /// Creates `.ube/results/`, and the `.gitignore` that keeps it local.
+    fn create(&self) -> Result<(), String> {
         std::fs::create_dir_all(self.dir.join("results"))
             .map_err(|e| format!("couldn't create {}: {e}", self.dir.display()))?;
         let ignore = self.dir.join(".gitignore");
@@ -57,6 +58,28 @@ impl Store {
             std::fs::write(&ignore, "# ube's local results; never committed.\n*\n")
                 .map_err(|e| e.to_string())?;
         }
+        Ok(())
+    }
+
+    /// The checks that failed in the last run, whatever tree it ran on:
+    /// what `ube run --rerun-failed` runs after a fix.
+    pub fn last_failed(&self) -> Vec<Check> {
+        std::fs::read_to_string(self.dir.join("last-failed.json"))
+            .ok()
+            .and_then(|t| serde_json::from_str(&t).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn save_last_failed(&self, checks: &[Check]) -> Result<(), String> {
+        self.create()?;
+        let text = serde_json::to_string_pretty(checks).map_err(|e| e.to_string())?;
+        std::fs::write(self.dir.join("last-failed.json"), text)
+            .map_err(|e| format!("couldn't write results: {e}"))
+    }
+
+    /// Adds `results` for `tree`, replacing earlier ones for the same checks.
+    pub fn save(&self, tree: &str, results: &[(String, CheckResult)]) -> Result<(), String> {
+        self.create()?;
         let mut all = self.load(tree);
         for (id, r) in results {
             all.insert(id.clone(), r.clone());

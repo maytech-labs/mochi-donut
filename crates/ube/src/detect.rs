@@ -18,6 +18,20 @@ pub struct Project {
     pub python: Vec<String>,
     pub make_targets: Vec<String>,
     pub ci: Vec<CiCheck>,
+    /// Rust lints the repo runs as checks, and the file that says so.
+    pub rust_lints: RustLints,
+}
+
+/// Whether the repo checks Rust formatting and clippy, from its CI,
+/// Makefile, justfile, xtask, or Cargo config.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct RustLints {
+    /// The file that runs `cargo fmt --check`.
+    pub fmt: Option<String>,
+    /// The file that runs `cargo clippy`.
+    pub clippy: Option<String>,
+    /// Whether warnings fail the build (`-D warnings`).
+    pub deny_warnings: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -27,6 +41,9 @@ pub struct CargoPkg {
     pub dir: String,
     /// Directories of path dependencies, repo-relative.
     pub deps: Vec<String>,
+    /// Dependencies inherited from the workspace, by name, until resolved.
+    #[serde(skip)]
+    pub inherited: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -49,6 +66,7 @@ pub fn detect(root: &Path, tracked: &[String]) -> Project {
     let read = |rel: &str| std::fs::read_to_string(root.join(rel)).unwrap_or_default();
     let mut p = Project::default();
     let set: BTreeSet<&str> = tracked.iter().map(String::as_str).collect();
+    let mut ws_paths: Vec<(String, String)> = Vec::new();
 
     for f in tracked {
         let (dir, name) = split(f);
@@ -60,6 +78,7 @@ pub fn detect(root: &Path, tracked: &[String]) -> Project {
                 {
                     p.cargo_root = Some(dir.to_owned());
                 }
+                ws_paths.extend(workspace_paths(&text, dir));
                 if let Some(pkg) = cargo_package(&text, dir) {
                     p.cargo.push(pkg);
                 }
@@ -93,6 +112,43 @@ pub fn detect(root: &Path, tracked: &[String]) -> Project {
         let workflow = (f.starts_with(".github/workflows/")
             && (f.ends_with(".yml") || f.ends_with(".yaml")))
             || f == ".gitlab-ci.yml";
+        let script = workflow
+            || matches!(
+                f.as_str(),
+                "Makefile"
+                    | "makefile"
+                    | "GNUmakefile"
+                    | "justfile"
+                    | "Justfile"
+                    | ".cargo/config.toml"
+                    | ".cargo/config"
+            )
+            || (f.starts_with("xtask/") && f.ends_with(".rs"));
+        if script {
+            // A workflow's commands, not its setup: `components: clippy`
+            // installs clippy without running it.
+            let text = if workflow {
+                ci_commands(&read(f)).join("\n")
+            } else if f.ends_with(".rs") {
+                read(f)
+            } else {
+                // Makefile, justfile, and TOML comments start with `#`.
+                read(f)
+                    .lines()
+                    .map(|l| l.split('#').next().unwrap_or(""))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            let (fmt, clippy, deny) = rust_lints(&text);
+            let l = &mut p.rust_lints;
+            if fmt && l.fmt.is_none() {
+                l.fmt = Some(f.clone());
+            }
+            if clippy && l.clippy.is_none() {
+                l.clippy = Some(f.clone());
+            }
+            l.deny_warnings |= deny;
+        }
         if workflow {
             for command in ci_commands(&read(f)) {
                 if is_check_command(&command) {
@@ -107,42 +163,50 @@ pub fn detect(root: &Path, tracked: &[String]) -> Project {
             }
         }
     }
+    for pkg in &mut p.cargo {
+        for name in std::mem::take(&mut pkg.inherited) {
+            if let Some((_, dir)) = ws_paths.iter().find(|(n, _)| *n == name)
+                && !pkg.deps.contains(dir)
+            {
+                pkg.deps.push(dir.clone());
+            }
+        }
+    }
     if p.cargo_root.is_none() && p.cargo.iter().any(|c| c.dir.is_empty()) {
         p.cargo_root = Some(String::new());
     }
     p
 }
 
+/// Whether a script or config file checks formatting, runs clippy, and
+/// denies warnings.
+fn rust_lints(text: &str) -> (bool, bool, bool) {
+    let fmt = text.contains("fmt") && text.contains("--check");
+    let clippy = text.contains("clippy");
+    let deny = regex::Regex::new(r#"-D["',\s]*warnings"#).is_ok_and(|re| re.is_match(text));
+    (fmt, clippy, deny)
+}
+
 fn split(path: &str) -> (&str, &str) {
     path.rsplit_once('/').unwrap_or(("", path))
 }
 
-/// A Cargo.toml's package name and path dependencies.
+/// A Cargo.toml's package name and path dependencies. Dependencies taken
+/// from the workspace (`core = { workspace = true }`) are kept by name in
+/// `inherited`, for `detect` to resolve against the workspace's table.
 fn cargo_package(text: &str, dir: &str) -> Option<CargoPkg> {
-    let mut section = "";
     let mut name = None;
     let mut deps = Vec::new();
-    for line in text.lines() {
-        let t = line.trim();
-        if t.starts_with('[') {
-            section = t;
-            continue;
+    let mut inherited = Vec::new();
+    for (section, key, value) in toml_entries(text) {
+        if section == "package" && key == "name" {
+            name = Some(unquote(value).to_owned());
         }
-        if section == "[package]"
-            && let Some(v) = t
-                .strip_prefix("name")
-                .map(str::trim_start)
-                .and_then(|r| r.strip_prefix('='))
-        {
-            name = Some(v.trim().trim_matches('"').to_owned());
-        }
-        if section.contains("dependencies")
-            && let Some(i) = t.find("path")
-            && let Some(q) = t[i..].find('"')
-        {
-            let rest = &t[i + q + 1..];
-            if let Some(end) = rest.find('"') {
-                deps.push(join(dir, &rest[..end]));
+        if let Some((dep, field, value)) = dependency(&section, key, value) {
+            match field {
+                "path" => deps.push(join(dir, unquote(value))),
+                "workspace" if value == "true" => inherited.push(dep.to_owned()),
+                _ => {}
             }
         }
     }
@@ -150,7 +214,91 @@ fn cargo_package(text: &str, dir: &str) -> Option<CargoPkg> {
         name: name?,
         dir: dir.to_owned(),
         deps,
+        inherited,
     })
+}
+
+/// The workspace's `[workspace.dependencies]` that are paths: name to
+/// repo-relative directory.
+fn workspace_paths(text: &str, dir: &str) -> Vec<(String, String)> {
+    toml_entries(text)
+        .into_iter()
+        .filter_map(|(section, key, value)| {
+            let (dep, field, value) = dependency(&section, key, value)?;
+            (field == "path" && section.starts_with("workspace."))
+                .then(|| (dep.to_owned(), join(dir, unquote(value))))
+        })
+        .collect()
+}
+
+/// `(section, key, value)` for each `key = value` line: enough TOML for
+/// Cargo manifests. An inline table's fields come out one by one, as if
+/// written `key.field = value`.
+fn toml_entries(text: &str) -> Vec<(String, &str, &str)> {
+    let mut section = String::new();
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let t = line.trim();
+        if let Some(s) = t.strip_prefix('[') {
+            section = s
+                .trim_start_matches('[')
+                .split(']')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .to_owned();
+            continue;
+        }
+        let Some((key, value)) = t.split_once('=') else {
+            continue;
+        };
+        let (key, value) = (key.trim(), value.trim());
+        if key.starts_with('#') {
+            continue;
+        }
+        out.push((section.clone(), key, value));
+    }
+    out
+}
+
+/// A dependency's name and one of its fields, from a manifest entry in a
+/// `dependencies` section: `core = { path = ".." }`, `core.path = ".."`,
+/// or `path = ".."` under `[dependencies.core]`.
+fn dependency<'a>(
+    section: &'a str,
+    key: &'a str,
+    value: &'a str,
+) -> Option<(&'a str, &'a str, &'a str)> {
+    let last = section.rsplit('.').next().unwrap_or(section);
+    if last.ends_with("dependencies") {
+        if let Some((dep, field)) = key.split_once('.') {
+            return Some((dep.trim(), field.trim(), value));
+        }
+        let fields = value.strip_prefix('{')?.trim_end_matches('}');
+        // Only the field we look for matters: path or workspace.
+        for f in fields.split(',') {
+            if let Some((k, v)) = f.split_once('=') {
+                let k = k.trim();
+                if k == "path" || k == "workspace" {
+                    return Some((
+                        key,
+                        if k == "path" { "path" } else { "workspace" },
+                        v.trim(),
+                    ));
+                }
+            }
+        }
+        return None;
+    }
+    // [dependencies.core] or [target.'cfg(unix)'.dependencies.core]
+    let (parent, dep) = section.rsplit_once('.')?;
+    parent
+        .ends_with("dependencies")
+        .then_some((dep, key, value))
+}
+
+fn unquote(v: &str) -> &str {
+    v.trim().trim_matches(['"', '\''])
 }
 
 /// `dir` joined with a relative path, with `..` resolved.
@@ -292,6 +440,33 @@ mod tests {
         assert_eq!(p.name, "mochi-yuzu");
         assert_eq!(p.deps, ["crates/common", "tools/helper"]);
         assert!(cargo_package("[workspace]\nmembers = []\n", "").is_none());
+    }
+
+    #[test]
+    fn finds_the_rust_lints_a_repo_runs() {
+        let xtask =
+            r#"&["fmt", "--all", "--check"], &["clippy", "--workspace", "--", "-D", "warnings"]"#;
+        assert_eq!(rust_lints(xtask), (true, true, true));
+        let ci = "- run: cargo clippy --all-targets -- -Dwarnings\n";
+        assert_eq!(rust_lints(ci), (false, true, true));
+        assert_eq!(
+            rust_lints("- run: cargo fmt\n- run: cargo clippy\n"),
+            (false, true, false)
+        );
+    }
+
+    #[test]
+    fn reads_workspace_inherited_path_deps() {
+        let root = "[workspace]\nmembers = [\"crates/*\"]\n\n[workspace.dependencies]\ncore = { path = \"crates/core\" }\nserde = \"1\"\n";
+        let app = "[package]\nname = \"app\"\n\n[dependencies]\ncore = { workspace = true }\nserde.workspace = true\npathdiff = \"0.2\"\n\n[dev-dependencies.core]\nworkspace = true\n";
+        let tracked = ["Cargo.toml", "crates/app/Cargo.toml"].map(String::from);
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), root).unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/app")).unwrap();
+        std::fs::write(dir.path().join("crates/app/Cargo.toml"), app).unwrap();
+        let p = detect(dir.path(), &tracked);
+        assert_eq!(p.cargo.len(), 1);
+        assert_eq!(p.cargo[0].deps, ["crates/core"]);
     }
 
     #[test]

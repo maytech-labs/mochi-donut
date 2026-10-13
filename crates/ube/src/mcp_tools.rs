@@ -45,7 +45,7 @@ fn done(v: &Value) -> Result<Vec<String>, String> {
 fn props(extra: Value) -> Value {
     let mut p = json!({
         "repo": { "type": "string", "description": "The repo's path. Default: the server's working directory." },
-        "base": { "type": "string", "description": "Compare against this commit or branch instead of HEAD." },
+        "base": { "type": "string", "description": "Compare against where HEAD left this branch or commit. Default: where this branch left the default branch, else HEAD." },
     });
     if let (Some(p), Some(e)) = (p.as_object_mut(), extra.as_object()) {
         p.extend(e.clone());

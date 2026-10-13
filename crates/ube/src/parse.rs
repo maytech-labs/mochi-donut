@@ -27,6 +27,7 @@ const MAX: usize = 30;
 pub fn failures(command: &str, output: &str) -> Vec<Failure> {
     let mut out = if command.contains("cargo") || command.contains("xtask") {
         let mut v = cargo_tests(command, output);
+        v.extend(rustfmt(command, output));
         v.extend(rust_diagnostics(output));
         v
     } else if command.contains("pytest") {
@@ -107,6 +108,33 @@ fn cargo_tests(command: &str, output: &str) -> Vec<Failure> {
         }
         f.message = message.join("\n");
         out.push(f);
+    }
+    out
+}
+
+/// `cargo fmt --check`: `Diff in /abs/src/a.rs:12:` (older rustfmt: `Diff
+/// in /abs/src/a.rs at line 12:`), one failure per file at its first diff.
+fn rustfmt(command: &str, output: &str) -> Vec<Failure> {
+    let diff = re(r"^Diff in (.+?)(?::| at line )(\d+):\s*$");
+    let fmt = command.contains("fmt");
+    let fix = if fmt {
+        command.replace(" --check", "")
+    } else {
+        "cargo fmt --all".to_owned()
+    };
+    let mut out: Vec<Failure> = Vec::new();
+    for c in output.lines().filter_map(|l| diff.captures(l)) {
+        let file = c[1].to_owned();
+        if out.iter().any(|f| f.file.as_deref() == Some(file.as_str())) {
+            continue;
+        }
+        out.push(Failure {
+            test: None,
+            file: Some(file),
+            line: c[2].parse().ok(),
+            message: format!("not formatted: `{fix}` fixes it"),
+            rerun: fmt.then(|| command.to_owned()),
+        });
     }
     out
 }
@@ -354,6 +382,22 @@ mod tests {
             f[0].rerun.as_deref(),
             Some("cargo test -p mochi-yuzu -- tests::b --exact")
         );
+    }
+
+    #[test]
+    fn rustfmt_diffs_one_per_file() {
+        let out = "Diff in /r/crates/y/src/a.rs:12:\n-fn  x() {}\n+fn x() {}\nDiff in /r/crates/y/src/a.rs:40:\n-a\n+b\nDiff in /r/src/b.rs at line 3:\n";
+        let f = failures("cargo fmt --check -p y", out);
+        let got: Vec<(&str, Option<u32>)> = f
+            .iter()
+            .map(|f| (f.file.as_deref().unwrap(), f.line))
+            .collect();
+        assert_eq!(
+            got,
+            [("/r/crates/y/src/a.rs", Some(12)), ("/r/src/b.rs", Some(3))]
+        );
+        assert_eq!(f[0].message, "not formatted: `cargo fmt -p y` fixes it");
+        assert_eq!(f[0].rerun.as_deref(), Some("cargo fmt --check -p y"));
     }
 
     #[test]

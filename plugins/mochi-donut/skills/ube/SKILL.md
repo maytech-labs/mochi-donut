@@ -13,7 +13,7 @@ ube knows which of the repo's own checks (Cargo packages and their dependents, n
 |---|---|---|
 | Before testing | `plan` | The checks that apply, why each, and what's left out |
 | To test | `run` | Each failure in a few lines, with a command that reruns just it |
-| After fixing a failure | `run` with `rerun_failed: true` | Just what failed last time on this code |
+| After fixing a failure | `run` with `rerun_failed: true` | Just what failed in the last run |
 | Before saying it's done | `done` | Checks passed on this exact code; tests changed; no missing companion, no doc made false, no assumed claim in a doc |
 | To see whether the tests prove the change | `ube mutate` (CLI) | Lines whose mutation no test notices |
 

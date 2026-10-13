@@ -3,12 +3,12 @@
 
 use std::collections::BTreeSet;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::detect::{CargoPkg, Project};
 
 /// One check to run: a shell command in a directory.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Check {
     /// The command, run with `sh -c`.
     pub command: String,
@@ -64,8 +64,11 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
         }
     };
 
+    // Cargo packages holding a changed file, for the repo's Rust lints;
+    // `None` inside means a workspace-wide change.
+    let mut linted: Vec<Option<&str>> = Vec::new();
+    let cargo_root = project.cargo_root.clone().unwrap_or_default();
     if !all {
-        let cargo_root = project.cargo_root.clone().unwrap_or_default();
         for file in changed {
             let mut matched = false;
             let (dir, name) = file.rsplit_once('/').unwrap_or(("", file.as_str()));
@@ -85,8 +88,12 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
                             tests: true,
                         },
                     );
+                    linted.push(None);
                     matched = true;
                 } else if let Some(pkg) = owner(&project.cargo, file) {
+                    if name.ends_with(".rs") && !linted.contains(&Some(pkg.name.as_str())) {
+                        linted.push(Some(pkg.name.as_str()));
+                    }
                     for p in with_dependents(&project.cargo, pkg) {
                         let why = if p.name == pkg.name {
                             format!("{file} is in {}", p.name)
@@ -213,6 +220,10 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
         );
     }
 
+    for c in rust_lints(project, &linted, &cargo_root) {
+        add(&mut checks, c);
+    }
+
     // A workspace-wide test covers each package's.
     if checks.iter().any(|c| c.command == "cargo test --workspace") {
         checks.retain(|c| !c.command.starts_with("cargo test -p "));
@@ -255,6 +266,57 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
         unmatched,
         full,
     }
+}
+
+/// `cargo fmt --check` and `cargo clippy` for the changed packages, when
+/// the repo runs them itself, with `-D warnings` when it denies warnings.
+/// `None` among `packages` means the whole workspace.
+fn rust_lints(project: &Project, packages: &[Option<&str>], dir: &str) -> Vec<Check> {
+    if packages.is_empty() {
+        return Vec::new();
+    }
+    let l = &project.rust_lints;
+    let (scope, which) = if packages.contains(&None) {
+        ("--workspace".to_owned(), "every package".to_owned())
+    } else {
+        let names: Vec<&str> = packages.iter().flatten().copied().collect();
+        (
+            names
+                .iter()
+                .map(|n| format!("-p {n}"))
+                .collect::<Vec<_>>()
+                .join(" "),
+            names.join(", "),
+        )
+    };
+    let mut out = Vec::new();
+    if let Some(file) = &l.fmt {
+        let scope = if scope == "--workspace" {
+            "--all"
+        } else {
+            scope.as_str()
+        };
+        out.push(Check {
+            command: format!("cargo fmt --check {scope}"),
+            dir: dir.to_owned(),
+            reason: format!("Rust in {which} changed; {file} checks formatting"),
+            tests: false,
+        });
+    }
+    if let Some(file) = &l.clippy {
+        let deny = if l.deny_warnings {
+            " -- -D warnings"
+        } else {
+            ""
+        };
+        out.push(Check {
+            command: format!("cargo clippy {scope} --all-targets{deny}"),
+            dir: dir.to_owned(),
+            reason: format!("Rust in {which} changed; {file} runs clippy"),
+            tests: false,
+        });
+    }
+    out
 }
 
 /// What the repo runs as its whole check: its CI commands, else `make
@@ -343,7 +405,7 @@ fn list(files: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::detect::{CiCheck, NpmPkg};
+    use crate::detect::{CiCheck, NpmPkg, RustLints};
 
     fn project() -> Project {
         Project {
@@ -352,21 +414,25 @@ mod tests {
                     name: "mochi-common".into(),
                     dir: "crates/common".into(),
                     deps: vec![],
+                    inherited: vec![],
                 },
                 CargoPkg {
                     name: "mochi-index".into(),
                     dir: "crates/index".into(),
                     deps: vec![],
+                    inherited: vec![],
                 },
                 CargoPkg {
                     name: "mochi-matcha".into(),
                     dir: "crates/matcha".into(),
                     deps: vec!["crates/common".into(), "crates/index".into()],
+                    inherited: vec![],
                 },
                 CargoPkg {
                     name: "mochi-yuzu".into(),
                     dir: "crates/yuzu".into(),
                     deps: vec!["crates/common".into()],
+                    inherited: vec![],
                 },
             ],
             cargo_root: Some(String::new()),
@@ -382,6 +448,7 @@ mod tests {
                 file: ".github/workflows/ci.yml".into(),
                 command: "cargo xtask check".into(),
             }],
+            rust_lints: RustLints::default(),
         }
     }
 
@@ -408,6 +475,48 @@ mod tests {
         assert!(p.checks[1].reason.contains("depends on mochi-common"));
         assert!(!p.full);
         assert_eq!(p.left_out[0].command, "cargo xtask check");
+    }
+
+    #[test]
+    fn rust_changes_get_the_lints_the_repo_runs() {
+        let mut pr = project();
+        // Without declared lints, only tests.
+        let p = plan(&pr, &["crates/yuzu/src/a.rs".into()], false, false);
+        assert_eq!(commands(&p), ["cargo test -p mochi-yuzu"]);
+        pr.rust_lints = RustLints {
+            fmt: Some("xtask/src/main.rs".into()),
+            clippy: Some("xtask/src/main.rs".into()),
+            deny_warnings: true,
+        };
+        let p = plan(&pr, &["crates/common/src/lib.rs".into()], false, false);
+        assert_eq!(
+            commands(&p),
+            [
+                "cargo test -p mochi-common",
+                "cargo test -p mochi-matcha",
+                "cargo test -p mochi-yuzu",
+                "cargo fmt --check -p mochi-common",
+                "cargo clippy -p mochi-common --all-targets -- -D warnings"
+            ]
+        );
+        assert!(
+            p.checks[3]
+                .reason
+                .contains("xtask/src/main.rs checks formatting")
+        );
+        assert!(!p.checks[3].tests && !p.checks[4].tests);
+        // A Cargo.toml in a package isn't Rust code: tests only.
+        let p = plan(&pr, &["crates/yuzu/Cargo.toml".into()], false, false);
+        assert_eq!(commands(&p), ["cargo test -p mochi-yuzu"]);
+        let p = plan(&pr, &["Cargo.lock".into()], false, false);
+        assert_eq!(
+            commands(&p),
+            [
+                "cargo test --workspace",
+                "cargo fmt --check --all",
+                "cargo clippy --workspace --all-targets -- -D warnings"
+            ]
+        );
     }
 
     #[test]
