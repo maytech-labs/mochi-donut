@@ -1,6 +1,9 @@
 # Design: mochi-donut
 
-- **Status:** Accepted. The command skeletons exist; nothing does its real work yet.
+<!-- matcha: links-only -->
+<!-- It's a proposal, and its examples quote other repos, so `matcha drift` checks only its links. -->
+
+- **Status:** Accepted. `census`, `recipe`, `drift`, `yuzu` status, and `yuzu check` are built; each command's section says how far.
 - **Date:** 2026-10-12
 - **Tools:** `matcha` (what the repo knows) and `yuzu` (what the user's environment is)
 
@@ -203,6 +206,8 @@ $ matcha drift
 - Runs in CI as a report first, and as a failing check once the false-alarm rate is low.
 
 **Done when.** Run on Anchor's docs as they were before the guidelines PR, it flags the ID-newtype claim in `engineering/conventions.md`.
+
+**Status (2026-10-12): mechanical claims built, and the bar is met.** Links, anchors, and code spans naming paths, identifiers, `make` targets, and `npm run` scripts are checked. On Anchor before the guidelines PR it flags `conventions.md:13`, `ClientId(Uuid)`, plus 10 other failures, 9 of them real drift. On Ghostty and this repo it finds nothing; on IntelliJ and Ghidra about 31 of 50 and 7 of 19 are real, and the rest are symbols naming code outside the repo. What counts as a claim, the `skip` and `links-only` comments, and the measurements are in [ADR 0015](decisions/0015-drift-mechanical-claims.md). Check comments, `--suggest`, and counts beside a path aren't built yet.
 
 #### `ledger`: what did I verify, and what did I assume?
 
