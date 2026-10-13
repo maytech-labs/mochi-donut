@@ -11,6 +11,10 @@
     "ube": {
       "command": "ube",
       "args": ["mcp"]
+    },
+    "taro": {
+      "command": "taro",
+      "args": ["mcp"]
     }
   }
 }
