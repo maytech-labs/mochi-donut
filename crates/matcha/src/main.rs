@@ -3,7 +3,9 @@
 //! See docs/design.md.
 
 mod census;
+mod drift;
 mod files;
+mod markdown;
 mod recipe;
 
 use std::path::PathBuf;
@@ -40,7 +42,7 @@ enum Command {
     /// What else usually changes when I change this?
     Recipe(RecipeArgs),
     /// Are the docs' claims about the code still true?
-    Drift,
+    Drift(DriftArgs),
     /// Record and check what was verified and what was assumed.
     Ledger,
     /// Print a short guide to matcha, written for AI agents.
@@ -63,6 +65,13 @@ struct CensusArgs {
     /// Examples to show per alternative.
     #[arg(long, default_value_t = 3)]
     examples: usize,
+}
+
+#[derive(Debug, Args)]
+struct DriftArgs {
+    /// Only check docs under these paths. Repeatable.
+    #[arg(long = "in", value_name = "PATH")]
+    paths: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -120,7 +129,7 @@ fn main() -> ExitCode {
     let result = match cli.command {
         Command::Census(args) => run_census(&root, args, format),
         Command::Recipe(args) => run_recipe(&root, args, format),
-        Command::Drift => Ok(not_implemented(format, "matcha", "drift")),
+        Command::Drift(args) => run_drift(&root, args, format),
         Command::Ledger => Ok(not_implemented(format, "matcha", "ledger")),
         Command::AgentGuide => Ok(exit::OK),
     };
@@ -311,6 +320,54 @@ fn run_recipe(root: &RepoRoot, args: RecipeArgs, format: Format) -> Result<u8, S
         }
     }
     Ok(if missing.is_empty() {
+        exit::OK
+    } else {
+        exit::CHECK_FAILED
+    })
+}
+
+fn run_drift(root: &RepoRoot, args: DriftArgs, format: Format) -> Result<u8, String> {
+    let err = |e: mochi_index::IndexError| e.to_string();
+    let tracked = root.tracked_files().map_err(err)?;
+    let all = files::text_files(root, &[]).map_err(err)?;
+    let licensed = drift::licensed_dirs(&tracked);
+    let docs: Vec<&files::SourceFile> = all
+        .iter()
+        .filter(|f| drift::is_own_doc(&f.path, &licensed))
+        .filter(|f| args.paths.is_empty() || args.paths.iter().any(|p| files::under(&f.path, p)))
+        .collect();
+    let repo = drift::Repo::new(root, tracked, &all, &docs);
+    let r = repo.check(&docs);
+
+    match format {
+        Format::Json => print_json(&r),
+        Format::Text => {
+            if r.docs_checked == 0 {
+                println!("No Markdown docs to check (looked for tracked .md and .mdx files).");
+                return Ok(exit::OK);
+            }
+            for f in &r.failing {
+                let claim = match f.kind {
+                    drift::Kind::Link | drift::Kind::Anchor => format!("({})", f.claim),
+                    _ => format!("`{}`", f.claim),
+                };
+                println!("{}:{}", f.doc, f.line);
+                println!("  {claim}");
+                println!("  FAILS: {}", f.reason);
+                println!("  {}", f.fix);
+            }
+            println!(
+                "Checked {} claims in {} docs against {} source files: {} fail, {} hold. Skipped {} code spans and links that make no checkable claim.",
+                r.claims_checked,
+                r.docs_checked,
+                r.source_files_searched,
+                r.failing.len(),
+                r.holds,
+                r.skipped
+            );
+        }
+    }
+    Ok(if r.failing.is_empty() {
         exit::OK
     } else {
         exit::CHECK_FAILED

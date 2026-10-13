@@ -10,14 +10,22 @@ When to run what
     matcha recipe --check                                    exit 1 if a usual companion file didn't change
   To decide whether to trust recipe here
     matcha recipe --replay 50                                its precision on this repo's history
+  Before trusting a doc, and after changing code a doc describes
+    matcha drift --in docs/                                  exit 1 if a link, path, or name in the docs is gone
   Not built yet (exit 3)
-    matcha drift, matcha ledger
+    matcha ledger
 
 Reading recipe --check
   "X changed but Y didn't. 9 of 9 earlier changes to X changed both."
   The counts are the evidence. "Usual fix" names a make target or npm script
   that writes Y, when one exists. Thresholds: --min-support (6),
   --min-confidence (0.9), --min-lift (2).
+
+Reading drift
+  "docs/a.md:13 `ClientId(Uuid)` FAILS: `ClientId` appears in no source file"
+  Fix the doc, or the code. Names outside this repo are false alarms: put
+  <!-- matcha: skip --> on the line before. A doc that's a plan or a write-up
+  of another repo can say <!-- matcha: links-only -->.
 
 Flags on every command
   --json         one JSON object on stdout

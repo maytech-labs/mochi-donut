@@ -45,7 +45,7 @@ fn is_small_file(path: &Path) -> bool {
 }
 
 /// Whether `path` is `prefix` or inside it. `prefix` may end in `/` or not.
-fn under(path: &str, prefix: &str) -> bool {
+pub fn under(path: &str, prefix: &str) -> bool {
     let prefix = prefix.trim_start_matches("./").trim_end_matches('/');
     prefix.is_empty()
         || path == prefix

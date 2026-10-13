@@ -8,6 +8,12 @@ use crate::IndexError;
 /// Runs `git -C <root> <args>` and returns stdout. Paths are printed as-is
 /// (`core.quotePath=false`), not octal-escaped.
 pub(crate) fn run(root: &Path, args: &[&str]) -> Result<String, IndexError> {
+    run_ok(root, args, &[0])
+}
+
+/// Like [`run`], but any exit code in `ok` counts as success. Some commands
+/// use 1 for "nothing matched".
+pub(crate) fn run_ok(root: &Path, args: &[&str], ok: &[i32]) -> Result<String, IndexError> {
     let out = Command::new("git")
         .arg("-C")
         .arg(root)
@@ -15,7 +21,7 @@ pub(crate) fn run(root: &Path, args: &[&str]) -> Result<String, IndexError> {
         .args(args)
         .output()
         .map_err(IndexError::GitMissing)?;
-    if !out.status.success() {
+    if !out.status.code().is_some_and(|c| ok.contains(&c)) {
         return Err(IndexError::Git {
             args: args.join(" "),
             stderr: String::from_utf8_lossy(&out.stderr).trim().to_owned(),

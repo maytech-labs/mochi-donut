@@ -90,6 +90,18 @@ impl RepoRoot {
         Ok(split_nul(&out))
     }
 
+    /// Which of `paths` (repo-relative) git ignores, such as `.env` or `target/`.
+    pub fn ignored(&self, paths: &[&str]) -> Result<Vec<String>, IndexError> {
+        if paths.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut args = vec!["check-ignore", "--"];
+        args.extend_from_slice(paths);
+        // Exit 1 means none of them are ignored.
+        let out = git::run_ok(self.path(), &args, &[0, 1])?;
+        Ok(out.lines().map(str::to_owned).collect())
+    }
+
     /// Up to `limit` non-merge commits reachable from `rev` (default `HEAD`),
     /// newest first. Empty for a repo with no commits.
     pub fn history(&self, rev: Option<&str>, limit: usize) -> Result<Vec<Commit>, IndexError> {
@@ -177,6 +189,25 @@ mod tests {
             RepoRoot::discover(dir.path()),
             Err(IndexError::NotARepo(_))
         ));
+    }
+
+    #[test]
+    fn reports_ignored_paths() {
+        let repo = tempfile::tempdir().unwrap();
+        let ok = std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(repo.path())
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok);
+        std::fs::write(repo.path().join(".gitignore"), ".env\ntarget/\n").unwrap();
+        let root = RepoRoot::discover(repo.path()).unwrap();
+        assert_eq!(
+            root.ignored(&[".env", "src/a.rs", "target/"]).unwrap(),
+            [".env", "target/"]
+        );
+        assert!(root.ignored(&["src/a.rs"]).unwrap().is_empty());
     }
 
     #[test]
