@@ -2,7 +2,7 @@
 
 Tools that help AI coding agents work in a repo the way a careful teammate would: with evidence about how things are done here, and without touching the wrong environment.
 
-> **Status: pre-release.** `matcha census`, `matcha recipe`, `matcha drift`, `yuzu`, and `yuzu check` work; the rest of the commands parse and say they aren't built yet. See the [design](docs/design.md) and the [roadmap](#roadmap).
+> **Status: pre-release.** `matcha census`, `matcha recipe`, `matcha drift`, `matcha ledger`, `yuzu`, and `yuzu check` work; the rest of the commands parse and say they aren't built yet. See the [design](docs/design.md) and the [roadmap](#roadmap).
 
 Agents start every session with no memory. They guess the house style, forget the companion edits a change needs, trust docs that have drifted, and run commands against whatever cluster or account the shell happens to point at. mochi-donut answers those questions from the repo's own history and from a declaration of your environments, in a form agents can act on.
 
@@ -72,7 +72,7 @@ Run `yuzu` to see where your shell points, and `yuzu check -- '<command>'` to se
 
 1. `matcha census` and `matcha recipe` (built; `recipe` clears its 90% precision bar on Ghostty and vim but not on Anchor, see [ADR 0012](docs/decisions/0012-recipe-support-six.md))
 2. `yuzu status` and `yuzu check`, run as a pre-command hook (built; on a two-week trial, see [ADR 0014](docs/decisions/0014-claude-code-hook.md))
-3. `matcha drift` (mechanical claims built and meets its bar on Anchor, and check comments built, see ADRs [0015](docs/decisions/0015-drift-mechanical-claims.md) and [0016](docs/decisions/0016-drift-check-comments.md)) and `matcha ledger`
+3. `matcha drift` (mechanical claims built and meets its bar on Anchor, and check comments built, see ADRs [0015](docs/decisions/0015-drift-mechanical-claims.md) and [0016](docs/decisions/0016-drift-check-comments.md)) and `matcha ledger` (built, see [ADR 0017](docs/decisions/0017-ledger.md))
 4. `yuzu probe`
 5. An MCP server and agent skills
 

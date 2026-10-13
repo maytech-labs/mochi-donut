@@ -3,7 +3,7 @@
 <!-- matcha: links-only -->
 <!-- It's a proposal, and its examples quote other repos, so `matcha drift` checks only its links. -->
 
-- **Status:** Accepted. `census`, `recipe`, `drift`, `yuzu` status, and `yuzu check` are built; each command's section says how far.
+- **Status:** Accepted. Every `matcha` command, `yuzu` status, and `yuzu check` are built; each command's section says how far.
 - **Date:** 2026-10-12
 - **Tools:** `matcha` (what the repo knows) and `yuzu` (what the user's environment is)
 
@@ -231,6 +231,8 @@ $ matcha ledger check --diff
 - When a branch merges, its ledger can be summarized into the PR description ("Verified: ..., Assumed: ...") and archived.
 
 **Done when.** Agents use it without being reminded in at least most sessions, and assumed claims stop appearing unmarked in merged docs.
+
+**Status (2026-10-12): built; the bar needs real sessions.** `add`, `verify`, `list`, `check --diff`, `summary`, `archive`, and the `matcha hook claude-code` recorder work. The ledger is local and ignores itself, a verified claim must carry evidence, and `check --diff` flags an added doc or comment line that holds most of an assumed claim's words. See [ADR 0017](decisions/0017-ledger.md). Whether agents use it unreminded can only be measured once the hook and skill are installed.
 
 ### `yuzu`: what the user's environment is
 
