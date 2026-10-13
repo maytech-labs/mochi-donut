@@ -68,13 +68,38 @@ kube_contexts = ["*-nonprod-*"]
 
 Run `yuzu` to see where your shell points, and `yuzu check -- '<command>'` to see what a command would touch. To check every command Claude Code runs, add the hook in [ADR 0014](docs/decisions/0014-claude-code-hook.md) to `~/.claude/settings.json`.
 
+## Use with agents
+
+In Claude Code, this repo is a plugin marketplace with two plugins:
+
+```sh
+/plugin marketplace add trammel-may/mochi-donut
+/plugin install mochi-donut@mochi-donut         # MCP servers and skills for both tools
+/plugin install mochi-donut-hooks@mochi-donut   # yuzu checks every Bash command; matcha records evidence
+```
+
+Both need `matcha` and `yuzu` on your `PATH`. The hooks plugin is separate because it changes how commands get approved: install it on purpose. You can add the same hooks by hand instead ([ADR 0014](docs/decisions/0014-claude-code-hook.md), [ADR 0017](docs/decisions/0017-ledger.md)).
+
+Other agents with MCP can run `matcha mcp` and `yuzu mcp` as stdio servers. Any agent can learn either tool from `matcha agent-guide` or `yuzu agent-guide`.
+
+For a repo's own agent instructions (`AGENTS.md`, `CLAUDE.md`), a short trigger table works better than a manual:
+
+```
+Before copying a pattern or writing a guideline   matcha census
+Before a change you haven't made here before      matcha recipe --like "<what you're doing>"
+Before trusting a doc                             matcha drift
+When you check or assume a fact                   matcha ledger add verified|assumed "<claim>"
+Before committing                                 matcha recipe --check; matcha ledger check --diff
+When it works for you but not the user            yuzu probe <url>
+```
+
 ## Roadmap
 
 1. `matcha census` and `matcha recipe` (built; `recipe` clears its 90% precision bar on Ghostty and vim but not on Anchor, see [ADR 0012](docs/decisions/0012-recipe-support-six.md))
 2. `yuzu status` and `yuzu check`, run as a pre-command hook (built; on a two-week trial, see [ADR 0014](docs/decisions/0014-claude-code-hook.md))
 3. `matcha drift` (mechanical claims built and meets its bar on Anchor, and check comments built, see ADRs [0015](docs/decisions/0015-drift-mechanical-claims.md) and [0016](docs/decisions/0016-drift-check-comments.md)) and `matcha ledger` (built, see [ADR 0017](docs/decisions/0017-ledger.md))
 4. `yuzu probe` (built, see [ADR 0018](docs/decisions/0018-yuzu-probe.md))
-5. An MCP server and agent skills
+5. MCP servers and a Claude Code plugin with skills and hooks (built, see [ADR 0019](docs/decisions/0019-mcp-and-plugin.md))
 
 Nothing is announced or published to crates.io until the first two steps prove useful ([ADR 0004](docs/decisions/0004-prove-before-announcing.md)).
 

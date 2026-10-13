@@ -318,6 +318,8 @@ An agent reliably uses a tool it has only been told about some of the time. So d
 
 **The principle: agents may use a tool for convenience, but safety never depends on them remembering to.** `census` and `recipe --like` make an agent better when it uses them. `yuzu check` and the pre-commit checks have to work when it doesn't.
 
+**Status (2026-10-12): built.** `matcha mcp` and `yuzu mcp` serve each tool's commands over stdio, as a thin layer that reruns the CLI with `--json`; their descriptions are triggers. This repo is a Claude Code plugin marketplace: `mochi-donut` carries the MCP servers and a skill per tool, and `mochi-donut-hooks` carries yuzu's check and matcha's recorder, as a separate install because it changes how commands are approved. The README has the trigger table. See [ADR 0019](decisions/0019-mcp-and-plugin.md).
+
 ## Rollout
 
 | Phase | Build | Prove it on |

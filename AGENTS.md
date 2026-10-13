@@ -15,6 +15,7 @@ mochi-donut is a Cargo workspace of command-line tools for AI coding agents:
 | `xtask` | (not published) | Repo automation: `cargo xtask <task>` |
 | `Makefile` | | `make install` and friends: a thin wrapper over Cargo ([0010](docs/decisions/0010-make-install.md)) |
 | `Formula/` | | The Homebrew formula; this repo is its own tap ([0011](docs/decisions/0011-homebrew-tap.md)) |
+| `plugins/`, `.claude-plugin/` | | Claude Code plugins (MCP servers, skills, hooks); this repo is their marketplace ([0019](docs/decisions/0019-mcp-and-plugin.md)) |
 
 The design is in [docs/design.md](docs/design.md). Decisions are in [docs/decisions/](docs/decisions/).
 
