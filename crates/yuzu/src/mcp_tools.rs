@@ -19,6 +19,14 @@ fn check(v: &Value) -> Result<Vec<String>, String> {
     ])
 }
 
+fn whoami(v: &Value) -> Result<Vec<String>, String> {
+    let mut argv = vec!["whoami".to_owned()];
+    if Args(v).flag("verify") {
+        argv.push("--verify".into());
+    }
+    Ok(argv)
+}
+
 fn probe(v: &Value) -> Result<Vec<String>, String> {
     let a = Args(v);
     let mut argv = vec!["probe".to_owned()];
@@ -47,6 +55,17 @@ pub fn tools() -> Vec<Tool> {
                 "required": ["command"],
             }),
             args: check,
+        },
+        Tool {
+            name: "whoami",
+            description: "Use before pushing, opening a PR, or calling a cloud API, and whenever auth fails: which account gh, git, ssh, and AWS will act as here, where each comes from, and what overrides it (a GH_TOKEN that hides your login, AWS keys that hide a profile). With `verify`, asks each service.",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "verify": { "type": "boolean", "description": "Ask GitHub, the git hosts, and AWS who you are (network calls)." },
+                },
+            }),
+            args: whoami,
         },
         Tool {
             name: "probe",

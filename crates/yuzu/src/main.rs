@@ -7,9 +7,11 @@ mod env;
 mod mcp_tools;
 mod policy;
 mod probe;
+mod proc;
 mod shell;
 mod status;
 mod targets;
+mod whoami;
 
 use std::io::Read;
 use std::path::PathBuf;
@@ -68,6 +70,13 @@ enum Command {
         #[arg(long, default_value_t = 15, value_name = "SECS")]
         timeout: u64,
     },
+    /// Which account each tool would act as here: gh, git, ssh, aws.
+    Whoami {
+        /// Ask each service who you are (network calls to GitHub, your git
+        /// hosts, and AWS).
+        #[arg(long)]
+        verify: bool,
+    },
     /// Serve status, check, and probe as MCP tools on stdin and stdout.
     Mcp,
     /// Print a short guide to yuzu, written for AI agents.
@@ -92,6 +101,7 @@ fn main() -> ExitCode {
         }
         Command::Status => run_status(&ctx, format),
         Command::Mcp => mcp_tools::serve(),
+        Command::Whoami { verify } => run_whoami(&ctx, verify, format),
         Command::Check { command } => run_check(&ctx, &command, format),
         Command::Hook {
             agent: HookAgent::ClaudeCode,
@@ -103,6 +113,45 @@ fn main() -> ExitCode {
         } => run_probe(&ctx, &url, browser.as_deref(), timeout, format),
     };
     ExitCode::from(code)
+}
+
+fn run_whoami(ctx: &Ctx, verify: bool, format: Format) -> u8 {
+    let ids = whoami::whoami(ctx, verify);
+    let failed = ids
+        .iter()
+        .filter(|i| i.verified.as_ref().is_some_and(|v| !v.ok))
+        .count();
+    match format {
+        Format::Json => print_json(
+            &serde_json::json!({ "identities": ids, "verified": verify, "failed": failed }),
+        ),
+        Format::Text => {
+            if ids.is_empty() {
+                println!("No gh login, git author, ssh remote, or AWS credentials found here.");
+            }
+            for i in &ids {
+                println!("  {:<7} {}: {}   ({})", i.service, i.scope, i.who, i.source);
+                if let Some(w) = &i.warning {
+                    println!("          ! {w}");
+                }
+                if let Some(v) = &i.verified {
+                    let mark = if v.ok { "ok" } else { "FAIL" };
+                    println!("          {mark}: {}", v.detail);
+                    if let Some(fix) = &v.fix {
+                        println!("          fix: {fix}");
+                    }
+                }
+            }
+            if !verify && ids.iter().any(|i| i.service != "git") {
+                println!("  (offline: --verify asks each service who you are)");
+            }
+        }
+    }
+    if failed > 0 {
+        exit::CHECK_FAILED
+    } else {
+        exit::OK
+    }
 }
 
 fn run_probe(ctx: &Ctx, url: &str, browser: Option<&str>, timeout: u64, format: Format) -> u8 {

@@ -290,3 +290,38 @@ fn mcp_serves_check_as_a_tool() {
     assert_eq!(replies[1]["result"]["isError"], false);
     assert_eq!(body["decision"], "ask", "{body}");
 }
+
+#[test]
+fn whoami_names_a_token_that_hides_the_stored_login() {
+    let h = home(None);
+    let gh = h.path().join("gh");
+    std::fs::create_dir_all(&gh).unwrap();
+    std::fs::write(
+        gh.join("hosts.yml"),
+        "github.com:\n    users:\n        me:\n    user: me\n",
+    )
+    .unwrap();
+    let mut cmd = yuzu(h.path());
+    cmd.env("GH_CONFIG_DIR", &gh)
+        .env("GH_TOKEN", "stale")
+        .env_remove("GITHUB_TOKEN")
+        .env_remove("AWS_ACCESS_KEY_ID")
+        .arg("whoami");
+    let body = json(&mut cmd, 0);
+    let github = body["identities"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["scope"] == "github.com")
+        .unwrap();
+    assert_eq!(github["who"], "token from GH_TOKEN");
+    assert!(
+        github["warning"]
+            .as_str()
+            .unwrap()
+            .contains("instead of me's stored login")
+    );
+    // Offline unless asked.
+    assert_eq!(body["verified"], false);
+    assert!(github.get("verified").is_none());
+}
