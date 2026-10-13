@@ -11,7 +11,7 @@ mochi-donut is a Cargo workspace of command-line tools for AI coding agents:
 | `crates/matcha` | `mochi-matcha` | The `matcha` binary: what a repo knows (`census`, `recipe`, `drift`, `ledger`) |
 | `crates/yuzu` | `mochi-yuzu` | The `yuzu` binary: what the user's environment is (`status`, `check`, `probe`) |
 | `crates/index` | `mochi-index` | The local index of a repo's files and history that matcha reads |
-| `crates/common` | `mochi-common` | Output format, exit codes, and `--json` conventions both tools share |
+| `crates/common` | `mochi-common` | Output format, exit codes, `--json` conventions, times, and the MCP server layer both tools share |
 | `xtask` | (not published) | Repo automation: `cargo xtask <task>` |
 | `Makefile` | | `make install` and friends: a thin wrapper over Cargo ([0010](docs/decisions/0010-make-install.md)) |
 | `Formula/` | | The Homebrew formula; this repo is its own tap ([0011](docs/decisions/0011-homebrew-tap.md)) |
