@@ -20,7 +20,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `yuzu hook claude-code`: `check` as a Claude Code `PreToolUse` hook.
 - `matcha mcp` and `yuzu mcp`: each tool's commands as MCP tools over stdio, with descriptions written as triggers.
 - A Claude Code plugin marketplace in this repo: `mochi-donut` (MCP servers and skills) and `mochi-donut-hooks` (yuzu's check and matcha's recorder).
-- Design doc and ADRs 0001–0032.
+- Design doc and ADRs 0001–0033.
 - `make install` (default `/usr/local/bin`) and a Homebrew formula (`brew install --HEAD mochi-donut` from this repo's tap).
 - `yuzu whoami`: which account gh, git, ssh, and AWS act as here, and what overrides it; `--verify` asks each service.
 - `yuzu wait`: wait for CI (GitHub), a port, a URL, a file, or a command, with a timeout and a clear exit code.
@@ -34,6 +34,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Changed
 
 - `ube` measures a branch from where it left the default branch, so committed work still needs proof, and `--base` uses the merge-base. It plans `cargo fmt --check` and clippy when the repo runs them, follows `workspace = true` path dependencies, and `--rerun-failed` works after a fix.
+- `ube` runs CI's checks in each step's `working-directory`, counts coverage and `format:check` scripts as checks and Playwright installs as setup, runs a build before the checks that read it, plans the scripts CI runs in an npm package, and tests a Cargo workspace for changes to its `.sqlx/`, `migrations/`, and lint config.
 - `taro ready` takes required checks from GitHub's `isRequired`, so failing required checks block even without admin rights; it blocks when the base requires an up-to-date branch, and when GitHub says blocked for a reason taro can't read. `taro flaky` no longer counts cancels or reruns of green runs, and `taro cleanup` keeps branches checked out in a worktree.
 - Docs are split per tool: `docs/<tool>/` holds each tool's design, usage, configuration, and agent pages; `docs/design.md` keeps the cross-tool design. ube and taro are proposed there.
 - `yuzu check` matches `infra_dirs` like `~/infra/*` when the home directory's path involves a symlink (`/var` and `/private/var` on macOS); before, it asked.
