@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 
 use crate::env::Ctx;
-use crate::proc::run;
 use crate::targets::{git_out, normalize_remote, remote_url};
+use mochi_common::proc::run;
 
 /// What to wait for.
 #[derive(Debug, Clone)]

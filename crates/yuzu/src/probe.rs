@@ -12,7 +12,7 @@ use mochi_common::time::rfc3339;
 use serde::Serialize;
 
 use crate::env::Ctx;
-use crate::proc::run;
+use mochi_common::proc::run;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Target {

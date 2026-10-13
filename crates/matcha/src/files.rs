@@ -75,24 +75,7 @@ pub fn is_generated(path: &str) -> bool {
         || name.ends_with(".min.css")
 }
 
-/// Whether a path is a test: under a `tests`, `test`, `__tests__`, `spec`, or
-/// `e2e` directory, or named like `*_test.go`, `*.test.ts`, `*.spec.ts`,
-/// `test_*.py`.
-pub fn is_test(path: &str) -> bool {
-    let mut segs: Vec<&str> = path.split('/').collect();
-    let name = segs.pop().unwrap_or("");
-    let stem = name.split('.').next().unwrap_or(name);
-    segs.iter().any(|s| {
-        matches!(
-            *s,
-            "tests" | "test" | "__tests__" | "spec" | "specs" | "e2e" | "testdata"
-        )
-    }) || name.contains(".test.")
-        || name.contains(".spec.")
-        || stem.ends_with("_test")
-        || stem.ends_with("_tests")
-        || stem.starts_with("test_")
-}
+pub use mochi_common::paths::is_test;
 
 /// A Rust file without its inline test module: everything from the first
 /// line that starts with `#[cfg(test)]`, which by convention closes the file.

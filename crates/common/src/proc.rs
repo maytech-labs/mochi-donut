@@ -1,4 +1,5 @@
-//! Running other programs with a time limit, for probe, whoami, and wait.
+//! Running other programs with their output captured and a time limit:
+//! yuzu's probe, whoami, and wait, and ube's checks.
 
 use std::io::Read;
 use std::process::{Command, Stdio};

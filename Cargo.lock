@@ -261,6 +261,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mochi-ube"
+version = "0.0.0"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "mochi-common",
+ "mochi-index",
+ "predicates",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "mochi-yuzu"
 version = "0.0.0"
 dependencies = [

@@ -1,7 +1,7 @@
 {
   "name": "mochi-donut",
   "version": "0.0.0",
-  "description": "MCP servers and skills for matcha (census, recipe, drift, ledger) and yuzu (status, check, probe). Needs both binaries on PATH.",
+  "description": "MCP servers and skills for matcha (census, recipe, drift, ledger), yuzu (status, check, probe, whoami, wait), and ube (plan, run, done). Needs the binaries on PATH.",
   "author": {
     "name": "Trammel May"
   },

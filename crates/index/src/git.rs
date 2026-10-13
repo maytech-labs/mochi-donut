@@ -30,6 +30,30 @@ pub(crate) fn run_ok(root: &Path, args: &[&str], ok: &[i32]) -> Result<String, I
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+/// Like [`run`], with extra environment variables for git.
+pub(crate) fn run_env(
+    root: &Path,
+    args: &[&str],
+    env: &[(&str, &Path)],
+) -> Result<String, IndexError> {
+    let mut cmd = Command::new("git");
+    cmd.arg("-C")
+        .arg(root)
+        .args(["-c", "core.quotePath=false"])
+        .args(args);
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    let out = cmd.output().map_err(IndexError::GitMissing)?;
+    if !out.status.success() {
+        return Err(IndexError::Git {
+            args: args.join(" "),
+            stderr: String::from_utf8_lossy(&out.stderr).trim().to_owned(),
+        });
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
 /// Whether the repo has at least one commit.
 pub(crate) fn has_head(root: &Path) -> bool {
     run(root, &["rev-parse", "--verify", "--quiet", "HEAD"]).is_ok()

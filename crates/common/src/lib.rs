@@ -2,6 +2,8 @@
 //! the shape of `--json` output (docs/matcha/usage.md and docs/yuzu/usage.md, "exit codes").
 
 pub mod mcp;
+pub mod paths;
+pub mod proc;
 
 use std::io::{self, Write};
 

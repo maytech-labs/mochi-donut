@@ -7,7 +7,6 @@ mod env;
 mod mcp_tools;
 mod policy;
 mod probe;
-mod proc;
 mod sessions;
 mod shell;
 mod status;

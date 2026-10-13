@@ -9,8 +9,8 @@ use std::time::Duration;
 use serde::Serialize;
 
 use crate::env::Ctx;
-use crate::proc::run;
 use crate::targets::{git_out, normalize_remote, remote_url};
+use mochi_common::proc::run;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Identity {

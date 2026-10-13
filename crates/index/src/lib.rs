@@ -113,6 +113,45 @@ impl RepoRoot {
         Ok((!name.is_empty()).then(|| name.to_owned()))
     }
 
+    /// Files the working tree changes relative to `base` (default `HEAD`),
+    /// staged or not, plus untracked files that aren't ignored. Deleted
+    /// files are included: a change that removes a file still needs checks.
+    pub fn changed_files(&self, base: Option<&str>) -> Result<Vec<String>, IndexError> {
+        let Some(base) = base else {
+            return self.working_changes();
+        };
+        let mut files = split_nul(&git::run(
+            self.path(),
+            &["diff", "--name-only", "--no-renames", "-z", base, "--"],
+        )?);
+        files.extend(split_nul(&git::run(
+            self.path(),
+            &["ls-files", "--others", "--exclude-standard", "-z"],
+        )?));
+        files.sort();
+        files.dedup();
+        Ok(files)
+    }
+
+    /// The id of a git tree holding the working tree exactly as it is,
+    /// tracked changes and untracked files included. Written through a
+    /// temporary index, so the real one isn't touched. Two calls with the
+    /// same files on disk give the same id.
+    pub fn worktree_tree(&self) -> Result<String, IndexError> {
+        let git_dir = git::run(self.path(), &["rev-parse", "--absolute-git-dir"])?;
+        let tmp = PathBuf::from(git_dir.trim()).join(format!("ube-index-{}", std::process::id()));
+        let env = [("GIT_INDEX_FILE", tmp.as_path())];
+        let result = (|| {
+            if git::has_head(self.path()) {
+                git::run_env(self.path(), &["read-tree", "HEAD"], &env)?;
+            }
+            git::run_env(self.path(), &["add", "-A", "--", "."], &env)?;
+            git::run_env(self.path(), &["write-tree"], &env)
+        })();
+        let _ = std::fs::remove_file(&tmp);
+        Ok(result?.trim().to_owned())
+    }
+
     /// Lines the working tree adds relative to `base` (default `HEAD`),
     /// staged or not, plus every line of untracked files that aren't ignored.
     pub fn added_lines(&self, base: Option<&str>) -> Result<Vec<AddedLine>, IndexError> {
@@ -314,6 +353,56 @@ mod tests {
             [".env", "target/"]
         );
         assert!(root.ignored(&["src/a.rs"]).unwrap().is_empty());
+    }
+
+    fn git(dir: &Path, args: &[&str]) {
+        let ok = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args([
+                "-c",
+                "user.name=T",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "git {args:?}");
+    }
+
+    #[test]
+    fn worktree_tree_tracks_content_not_the_index() {
+        let repo = tempfile::tempdir().unwrap();
+        git(repo.path(), &["init", "-q"]);
+        std::fs::write(repo.path().join("a.txt"), "one\n").unwrap();
+        git(repo.path(), &["add", "-A"]);
+        git(repo.path(), &["commit", "-q", "-m", "a"]);
+        let root = RepoRoot::discover(repo.path()).unwrap();
+        let clean = root.worktree_tree().unwrap();
+        assert_eq!(clean, root.worktree_tree().unwrap());
+
+        std::fs::write(repo.path().join("b.txt"), "new\n").unwrap();
+        let dirty = root.worktree_tree().unwrap();
+        assert_ne!(clean, dirty);
+        // The real index is untouched: b.txt is still untracked.
+        let status = std::process::Command::new("git")
+            .arg("-C")
+            .arg(repo.path())
+            .args(["status", "--porcelain"])
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&status.stdout), "?? b.txt\n");
+
+        std::fs::remove_file(repo.path().join("b.txt")).unwrap();
+        assert_eq!(root.worktree_tree().unwrap(), clean);
+        assert_eq!(
+            root.changed_files(Some("HEAD")).unwrap(),
+            Vec::<String>::new()
+        );
     }
 
     #[test]

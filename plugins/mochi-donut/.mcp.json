@@ -7,6 +7,10 @@
     "yuzu": {
       "command": "yuzu",
       "args": ["mcp"]
+    },
+    "ube": {
+      "command": "ube",
+      "args": ["mcp"]
     }
   }
 }
