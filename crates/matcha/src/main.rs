@@ -5,6 +5,8 @@
 mod census;
 mod drift;
 mod files;
+mod hook;
+mod ledger;
 mod markdown;
 mod recipe;
 mod rules;
@@ -13,7 +15,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{ArgGroup, Args, Parser, Subcommand};
-use mochi_common::{Format, exit, not_implemented, print_json};
+use mochi_common::{Format, exit, print_json};
 use mochi_index::{CoChange, RepoRoot};
 use regex::Regex;
 
@@ -45,7 +47,12 @@ enum Command {
     /// Are the docs' claims about the code still true?
     Drift(DriftArgs),
     /// Record and check what was verified and what was assumed.
-    Ledger,
+    Ledger(LedgerArgs),
+    /// Run as an agent hook: read the hook's JSON on stdin.
+    Hook {
+        #[arg(value_enum)]
+        agent: HookAgent,
+    },
     /// Print a short guide to matcha, written for AI agents.
     AgentGuide,
 }
@@ -66,6 +73,74 @@ struct CensusArgs {
     /// Examples to show per alternative.
     #[arg(long, default_value_t = 3)]
     examples: usize,
+}
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+enum HookAgent {
+    /// A Claude Code `PostToolUse` hook on Bash that records commands and
+    /// their output for `ledger add verified --cmd`.
+    ClaudeCode,
+}
+
+#[derive(Debug, Args)]
+struct LedgerArgs {
+    #[command(subcommand)]
+    command: LedgerCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum LedgerCommand {
+    /// Record a claim as verified (with evidence) or assumed.
+    Add {
+        #[arg(value_enum)]
+        status: StatusArg,
+        /// The claim, in one sentence.
+        claim: String,
+        #[command(flatten)]
+        evidence: EvidenceArgs,
+    },
+    /// Mark an assumed claim verified, with evidence.
+    Verify {
+        /// The entry's number, from `matcha ledger list`.
+        id: u32,
+        #[command(flatten)]
+        evidence: EvidenceArgs,
+    },
+    /// List this branch's claims.
+    List,
+    /// Flag assumed claims that added lines in docs or comments state.
+    Check {
+        /// Check the working tree's changes against --base (default HEAD).
+        #[arg(long, required = true)]
+        diff: bool,
+        /// What to diff against: a commit, branch, or tag.
+        #[arg(long, value_name = "REV", requires = "diff")]
+        base: Option<String>,
+    },
+    /// Print the ledger as Markdown for a PR description.
+    Summary,
+    /// Move this branch's ledger to .matcha/ledger/archive/, after merging.
+    Archive,
+}
+
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+enum StatusArg {
+    Verified,
+    Assumed,
+}
+
+#[derive(Debug, Args)]
+struct EvidenceArgs {
+    /// What shows it: a command's output, a URL, what you saw.
+    #[arg(long, value_name = "TEXT")]
+    evidence: Option<String>,
+    /// A file, and optionally a line, that shows it: src/a.rs:12.
+    #[arg(long, value_name = "PATH[:LINE]")]
+    file: Option<String>,
+    /// Attach the latest command the hook recorded that contains TEXT, with
+    /// its output.
+    #[arg(long, value_name = "TEXT")]
+    cmd: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -120,6 +195,14 @@ fn main() -> ExitCode {
         print!("{AGENT_GUIDE}");
         return ExitCode::from(exit::OK);
     }
+    if let Command::Hook {
+        agent: HookAgent::ClaudeCode,
+    } = cli.command
+    {
+        // The hook finds the repo from its input, and never blocks the agent.
+        hook::claude_code();
+        return ExitCode::from(exit::OK);
+    }
 
     // Every repo command needs a repo; say so plainly before anything else.
     let start = cli.repo.unwrap_or_else(|| PathBuf::from("."));
@@ -135,8 +218,8 @@ fn main() -> ExitCode {
         Command::Census(args) => run_census(&root, args, format),
         Command::Recipe(args) => run_recipe(&root, args, format),
         Command::Drift(args) => run_drift(&root, args, format),
-        Command::Ledger => Ok(not_implemented(format, "matcha", "ledger")),
-        Command::AgentGuide => Ok(exit::OK),
+        Command::Ledger(args) => run_ledger(&root, args, format),
+        Command::AgentGuide | Command::Hook { .. } => Ok(exit::OK),
     };
     match result {
         Ok(code) => ExitCode::from(code),
@@ -403,6 +486,185 @@ fn run_drift(root: &RepoRoot, args: DriftArgs, format: Format) -> Result<u8, Str
     } else {
         exit::CHECK_FAILED
     })
+}
+
+fn run_ledger(root: &RepoRoot, args: LedgerArgs, format: Format) -> Result<u8, String> {
+    let store = ledger::Store::open(root)?;
+    match args.command {
+        LedgerCommand::Add {
+            status,
+            claim,
+            evidence,
+        } => {
+            if claim.trim().is_empty() {
+                return Err(
+                    "Give the claim in one sentence: matcha ledger add assumed \"<claim>\"".into(),
+                );
+            }
+            let status = match status {
+                StatusArg::Verified => ledger::Status::Verified,
+                StatusArg::Assumed => ledger::Status::Assumed,
+            };
+            let evidence = gather_evidence(root, &store, &evidence)?;
+            if status == ledger::Status::Verified && evidence.is_none() {
+                return Err("A verified claim needs evidence: --evidence \"<what you saw>\", --file <path:line>, or --cmd <text from a command you ran>. Without it, record it as assumed.".into());
+            }
+            let entry = store.add(status, &claim, evidence)?;
+            print_entry(&entry, "Recorded", format);
+            Ok(exit::OK)
+        }
+        LedgerCommand::Verify { id, evidence } => {
+            let Some(evidence) = gather_evidence(root, &store, &evidence)? else {
+                return Err("Say what verified it: --evidence \"<what you saw>\", --file <path:line>, or --cmd <text from a command you ran>.".into());
+            };
+            let entry = store.verify(id, evidence)?;
+            print_entry(&entry, "Verified", format);
+            Ok(exit::OK)
+        }
+        LedgerCommand::List => {
+            let entries = store.entries()?;
+            match format {
+                Format::Json => print_json(&serde_json::json!({
+                    "branch": store.branch,
+                    "entries": entries,
+                })),
+                Format::Text => {
+                    if entries.is_empty() {
+                        println!(
+                            "No claims recorded on {}. Add one with: matcha ledger add <verified|assumed> \"<claim>\"",
+                            store.branch
+                        );
+                    }
+                    for e in &entries {
+                        let status = match e.status {
+                            ledger::Status::Verified => "verified",
+                            ledger::Status::Assumed => "assumed ",
+                        };
+                        println!("{:>3}  {status}  {}", e.id, e.claim);
+                        if let Some(ev) = &e.evidence {
+                            println!("               {}", ev.describe());
+                        }
+                    }
+                }
+            }
+            Ok(exit::OK)
+        }
+        LedgerCommand::Check { diff: _, base } => {
+            let entries = store.entries()?;
+            let added = root
+                .added_lines(base.as_deref())
+                .map_err(|e| e.to_string())?;
+            let flags = ledger::check(&entries, &added);
+            let assumed = entries
+                .iter()
+                .filter(|e| e.status == ledger::Status::Assumed)
+                .count();
+            match format {
+                Format::Json => print_json(&serde_json::json!({
+                    "branch": store.branch,
+                    "assumed": assumed,
+                    "lines_checked": added.len(),
+                    "flagged": flags,
+                })),
+                Format::Text => {
+                    for f in &flags {
+                        println!("{}:{} states an assumed claim:", f.path, f.line);
+                        println!("  \"{}\"", f.text);
+                        println!(
+                            "  matches #{} \"{}\" (assumed, no evidence; {} of {} words)",
+                            f.id, f.claim, f.shared, f.of
+                        );
+                    }
+                    if flags.is_empty() {
+                        println!(
+                            "No assumed claims in the {} added lines ({assumed} assumed claims on {}).",
+                            added.len(),
+                            store.branch
+                        );
+                    } else {
+                        println!(
+                            "Verify each and run `matcha ledger verify <id> --evidence ...`, or mark it in the text as unverified."
+                        );
+                    }
+                }
+            }
+            Ok(if flags.is_empty() {
+                exit::OK
+            } else {
+                exit::CHECK_FAILED
+            })
+        }
+        LedgerCommand::Summary => {
+            let entries = store.entries()?;
+            let markdown = ledger::summary(&entries);
+            match format {
+                Format::Json => print_json(&serde_json::json!({
+                    "branch": store.branch,
+                    "markdown": markdown,
+                })),
+                Format::Text => {
+                    if markdown.is_empty() {
+                        println!("No claims recorded on {}.", store.branch);
+                    } else {
+                        println!("{markdown}");
+                    }
+                }
+            }
+            Ok(exit::OK)
+        }
+        LedgerCommand::Archive => {
+            let to = store.archive()?;
+            match format {
+                Format::Json => print_json(&serde_json::json!({
+                    "branch": store.branch,
+                    "archived_to": to,
+                })),
+                Format::Text => match &to {
+                    Some(p) => println!("Archived {}'s ledger to {}.", store.branch, p.display()),
+                    None => println!("No ledger for {} to archive.", store.branch),
+                },
+            }
+            Ok(exit::OK)
+        }
+    }
+}
+
+fn gather_evidence(
+    root: &RepoRoot,
+    store: &ledger::Store,
+    args: &EvidenceArgs,
+) -> Result<Option<ledger::Evidence>, String> {
+    let mut ev = match &args.file {
+        Some(spec) => ledger::file_evidence(root.path(), spec)?,
+        None => ledger::Evidence::default(),
+    };
+    if let Some(needle) = &args.cmd {
+        let Some(record) = store.find_command(needle)? else {
+            return Err(format!(
+                "No recorded command contains {needle:?}. Commands are recorded by the hook (`matcha hook claude-code`, see `matcha agent-guide`); without it, paste what you saw with --evidence."
+            ));
+        };
+        ev.command = Some(record.command);
+        ev.output = Some(record.output);
+    }
+    ev.text = args.evidence.clone();
+    Ok((ev != ledger::Evidence::default()).then_some(ev))
+}
+
+fn print_entry(entry: &ledger::Entry, verb: &str, format: Format) {
+    match format {
+        Format::Json => print_json(&serde_json::json!({ "entry": entry })),
+        Format::Text => {
+            let status = match entry.status {
+                ledger::Status::Verified => "verified",
+                ledger::Status::Assumed => "assumed",
+            };
+            println!("{verb} #{} as {status}: {}", entry.id, entry.claim);
+            if let Some(ev) = &entry.evidence {
+                println!("  evidence: {}", ev.describe());
+            }
+        }
+    }
 }
 
 /// `Rust 66, TypeScript 20` from a count per language, largest first.

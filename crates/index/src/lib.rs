@@ -102,6 +102,57 @@ impl RepoRoot {
         Ok(out.lines().map(str::to_owned).collect())
     }
 
+    /// The checked-out branch's name, or `None` when `HEAD` is detached.
+    pub fn current_branch(&self) -> Result<Option<String>, IndexError> {
+        let out = git::run_ok(
+            self.path(),
+            &["symbolic-ref", "--short", "-q", "HEAD"],
+            &[0, 1],
+        )?;
+        let name = out.trim();
+        Ok((!name.is_empty()).then(|| name.to_owned()))
+    }
+
+    /// Lines the working tree adds relative to `base` (default `HEAD`),
+    /// staged or not, plus every line of untracked files that aren't ignored.
+    pub fn added_lines(&self, base: Option<&str>) -> Result<Vec<AddedLine>, IndexError> {
+        // The empty tree, for a repo with no commits yet.
+        const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+        let base = match base {
+            Some(b) => b,
+            None if git::has_head(self.path()) => "HEAD",
+            None => EMPTY_TREE,
+        };
+        let diff = git::run(
+            self.path(),
+            &[
+                "diff",
+                "--unified=0",
+                "--no-color",
+                "--no-ext-diff",
+                "--no-renames",
+                base,
+                "--",
+            ],
+        )?;
+        let mut out = parse_added(&diff);
+        let untracked = split_nul(&git::run(
+            self.path(),
+            &["ls-files", "--others", "--exclude-standard", "-z"],
+        )?);
+        for path in untracked {
+            let Ok(text) = std::fs::read_to_string(self.path().join(&path)) else {
+                continue; // Binary or unreadable: no lines to check.
+            };
+            out.extend(text.lines().enumerate().map(|(i, l)| AddedLine {
+                path: path.clone(),
+                line: i + 1,
+                text: l.to_owned(),
+            }));
+        }
+        Ok(out)
+    }
+
     /// Up to `limit` non-merge commits reachable from `rev` (default `HEAD`),
     /// newest first. Empty for a repo with no commits.
     pub fn history(&self, rev: Option<&str>, limit: usize) -> Result<Vec<Commit>, IndexError> {
@@ -132,6 +183,61 @@ pub struct Commit {
     pub hash: String,
     pub subject: String,
     pub files: Vec<String>,
+}
+
+/// A line a change adds, with where it lands in the new file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AddedLine {
+    pub path: String,
+    /// 1-based, in the new file.
+    pub line: usize,
+    pub text: String,
+}
+
+/// Added lines from `git diff --unified=0` output. Hunk headers say how
+/// many lines follow, so a content line like `+++ x` isn't read as a header.
+fn parse_added(diff: &str) -> Vec<AddedLine> {
+    let mut out = Vec::new();
+    let mut path: Option<String> = None;
+    let (mut old_left, mut new_left, mut next) = (0usize, 0usize, 0usize);
+    for line in diff.lines() {
+        if old_left > 0 || new_left > 0 {
+            if let Some(text) = line.strip_prefix('+') {
+                if let Some(p) = &path {
+                    out.push(AddedLine {
+                        path: p.clone(),
+                        line: next,
+                        text: text.to_owned(),
+                    });
+                }
+                next += 1;
+                new_left = new_left.saturating_sub(1);
+            } else if line.starts_with('-') {
+                old_left = old_left.saturating_sub(1);
+            }
+            continue;
+        }
+        if let Some(p) = line.strip_prefix("+++ ") {
+            path = p.strip_prefix("b/").map(str::to_owned);
+        } else if let Some(hunk) = line.strip_prefix("@@ ") {
+            // @@ -a,b +c,d @@ (a count of 1 may be left out)
+            let range = |sign: char| -> (usize, usize) {
+                let Some(r) = hunk.split_whitespace().find_map(|w| w.strip_prefix(sign)) else {
+                    return (0, 0);
+                };
+                let mut parts = r.split(',');
+                let start = parts.next().and_then(|n| n.parse().ok()).unwrap_or(0);
+                let count = parts
+                    .next()
+                    .map_or(Some(1), |n| n.parse().ok())
+                    .unwrap_or(0);
+                (start, count)
+            };
+            old_left = range('-').1;
+            (next, new_left) = range('+');
+        }
+    }
+    out
 }
 
 fn split_nul(out: &str) -> Vec<String> {
@@ -208,6 +314,25 @@ mod tests {
             [".env", "target/"]
         );
         assert!(root.ignored(&["src/a.rs"]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn parses_added_lines() {
+        let diff = "diff --git a/d.md b/d.md\n--- a/d.md\n+++ b/d.md\n@@ -3,0 +4,2 @@ intro\n+new one\n+new two\n@@ -9 +11 @@\n-old\n+changed\n@@ -20,0 +12 @@\n+++ plus\ndiff --git a/gone.md b/gone.md\n--- a/gone.md\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
+        let lines = parse_added(diff);
+        let got: Vec<(&str, usize, &str)> = lines
+            .iter()
+            .map(|l| (l.path.as_str(), l.line, l.text.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("d.md", 4, "new one"),
+                ("d.md", 5, "new two"),
+                ("d.md", 11, "changed"),
+                ("d.md", 12, "++ plus")
+            ]
+        );
     }
 
     #[test]

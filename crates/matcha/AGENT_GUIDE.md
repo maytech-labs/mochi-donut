@@ -14,8 +14,15 @@ When to run what
     matcha drift --in docs/                                  exit 1 if a link, path, or name in the docs is gone
   When writing a rule into a doc ("never X", "always Y")
     matcha drift --suggest                                   a check comment to put above it, with evidence
-  Not built yet (exit 3)
-    matcha ledger
+  When you check a fact, or have to assume one
+    matcha ledger add verified "<claim>" --evidence "<what you saw>"
+    matcha ledger add verified "<claim>" --file src/a.rs:12
+    matcha ledger add verified "<claim>" --cmd "<text from a command you ran>"
+    matcha ledger add assumed "<claim>"
+  Before committing docs or comments
+    matcha ledger check --diff                               exit 1 if an added line states an assumed claim
+  Writing the PR description
+    matcha ledger summary                                    Verified: ... Assumed: ...
 
 Reading recipe --check
   "X changed but Y didn't. 9 of 9 earlier changes to X changed both."
@@ -31,6 +38,15 @@ Reading drift
   A rule sentence can carry its own check, on the line before it:
     <!-- matcha: no-match 'Utc::now\(' except 'clock.rs' -->
   It fails with the matching lines. match '<regex>' requires a match instead.
+
+Reading ledger
+  Decisions go in ADRs, facts go in the ledger. Verified needs evidence;
+  if you didn't check it, say assumed. `matcha ledger verify <id> --evidence`
+  upgrades one once you have. --cmd needs the hook below, which records each
+  Bash command and its output (secrets redacted) under .matcha/, which git
+  ignores. Add to Claude Code settings:
+    "PostToolUse": [{"matcher": "Bash", "hooks": [{"type": "command",
+      "command": "matcha hook claude-code"}]}]
 
 Flags on every command
   --json         one JSON object on stdout
