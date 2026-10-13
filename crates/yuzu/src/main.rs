@@ -1,6 +1,6 @@
 //! yuzu: what your environment is. Shows and classifies the targets a command
 //! would touch (`status`, `check`) and checks services from where the user is
-//! (`probe`). See docs/design.md.
+//! (`probe`). See docs/yuzu/.
 
 mod config;
 mod env;
@@ -132,17 +132,26 @@ enum WaitCondition {
         repo: Option<String>,
     },
     /// Until host:port accepts a TCP connection.
-    Port { address: String },
+    Port {
+        /// host:port, such as 127.0.0.1:8200.
+        address: String,
+    },
     /// Until the URL answers 2xx or 3xx, or --status.
     Url {
+        /// The http or https URL.
         url: String,
+        /// Wait for exactly this status code instead.
         #[arg(long)]
         status: Option<u16>,
     },
     /// Until the path exists.
-    File { path: String },
+    File {
+        /// The file or directory.
+        path: String,
+    },
     /// Until the command exits 0. One argument runs through `sh -c`.
     Cmd {
+        /// The command, after `--`.
         #[arg(last = true, required = true)]
         command: Vec<String>,
     },
