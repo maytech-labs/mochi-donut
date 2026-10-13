@@ -1,19 +1,42 @@
 yuzu: what your environment is, before you act on it.
 
-Status: pre-release. Commands marked (planned) exit with code 3 and say so.
-
 When to run what
-  Before acting on a cluster, cloud account, or host   yuzu                       (planned)
-  Before every shell command                           yuzu check -- <command>    (planned; meant to run from a hook)
-  When it works for you but not for the user           yuzu probe <url>           (planned)
+  Before acting on a cluster, cloud account, or host   yuzu                       where the shell points, and whose it is
+  Before a command that might change one               yuzu check -- '<command>'  exit 1 if it needs the user's approval
+  Every Bash command, automatically                    yuzu hook claude-code      a Claude Code PreToolUse hook
+  Not built yet (exit 3)                               yuzu probe <url>
 
-Environments are declared once per user in ~/.config/yuzu/environments.toml
-as mine, work, or production. Unknown targets count as risky.
+What check looks at
+  kubectl, helm      the kube context: --context, else current-context in $KUBECONFIG or ~/.kube/config
+  ssh, scp, rsync    the host
+  git push           the remote's URL, normalized (github.com/owner/repo)
+  aws                the profile: --profile, else $AWS_PROFILE, else default
+  It reads through ;, &&, |, $( ), sudo, env, bash -c, and VAR=value prefixes.
+
+Decisions
+  write to an env agents may write to (class mine)   allowed
+  read anything not marked agents = "none"           allowed
+  write to work, production, or anything undeclared  needs the user's approval
+  anything in an env with agents = "none"            denied
+  When blocked, don't look for another way to run it. Use the safe target the
+  message names, or ask the user.
+
+Declaring environments: ~/.config/yuzu/environments.toml (or $YUZU_CONFIG)
+  [[env]]
+  name = "homelab"
+  class = "mine"                     # mine, work, or production
+  kube_contexts = ["k3s-pis"]        # patterns: * and ?
+  ssh_hosts = ["samwise", "10.0.0.*"]
+  git_remotes = ["github.com/me/*"]
+  aws_profiles = ["personal"]
+  # agents = "write" | "read-only" | "none"  (default: write for mine, else read-only)
+  The first env with a matching pattern wins.
 
 Flags on every command
   --json   one JSON object on stdout
 
 Exit codes
   0  ran, nothing wrong (or the command is allowed)
-  1  a check failed (the command is blocked)
+  1  a check failed (the command needs approval or is denied)
   2  bad usage       3  not built yet
+  A config that doesn't parse blocks every check until it's fixed.
