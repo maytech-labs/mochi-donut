@@ -16,7 +16,7 @@ When to run what
 Reading recipe --check
   "X changed but Y didn't. 9 of 9 earlier changes to X changed both."
   The counts are the evidence. "Usual fix" names a make target or npm script
-  that writes Y, when one exists. Thresholds: --min-support (5),
+  that writes Y, when one exists. Thresholds: --min-support (6),
   --min-confidence (0.9), --min-lift (2).
 
 Flags on every command

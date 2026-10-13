@@ -35,7 +35,7 @@ fn commit(dir: &Path, subject: &str, files: &[(&str, &str)]) {
 }
 
 /// A repo where every change to the API spec source also regenerated the
-/// committed spec, five times over, among unrelated work.
+/// committed spec, six times over, among unrelated work.
 fn api_repo() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     git(dir.path(), &["init", "-q", "-b", "main"]);
@@ -52,9 +52,11 @@ fn api_repo() -> tempfile::TempDir {
             &[(&format!("lib/util{i}.rs"), "\n")],
         );
     }
-    for (i, name) in ["clients", "holders", "policies", "invoices", "payments"]
-        .iter()
-        .enumerate()
+    for (i, name) in [
+        "clients", "holders", "policies", "invoices", "payments", "quotes",
+    ]
+    .iter()
+    .enumerate()
     {
         commit(
             dir.path(),
@@ -103,7 +105,7 @@ fn recipe_check_names_the_missing_companion_and_the_fix() {
         .stdout(predicate::str::contains(
             "api/openapi.rs changed but web/openapi.json didn't.",
         ))
-        .stdout(predicate::str::contains("5 of 5 earlier changes"))
+        .stdout(predicate::str::contains("6 of 6 earlier changes"))
         .stdout(predicate::str::contains("Usual fix: make openapi"));
 }
 
@@ -115,7 +117,7 @@ fn recipe_check_passes_when_the_companion_changed_too() {
 
     let body = json(matcha(repo.path()).args(["recipe", "--check"]), 0);
     assert_eq!(body["missing"], serde_json::json!([]));
-    assert_eq!(body["commits_learned_from"], 11);
+    assert_eq!(body["commits_learned_from"], 12);
 }
 
 #[test]
@@ -142,7 +144,7 @@ fn recipe_like_finds_what_similar_changes_shared() {
         matcha(repo.path()).args(["recipe", "--like", "add a refunds endpoint"]),
         0,
     );
-    assert_eq!(body["similar"].as_array().unwrap().len(), 5);
+    assert_eq!(body["similar"].as_array().unwrap().len(), 6);
     let paths: Vec<&str> = body["files"]
         .as_array()
         .unwrap()
@@ -165,10 +167,7 @@ fn recipe_replay_measures_itself() {
             ("api/routes/refunds.rs", "\n"),
         ],
     );
-    let body = json(
-        matcha(repo.path()).args(["recipe", "--replay", "1", "--min-support", "5"]),
-        0,
-    );
+    let body = json(matcha(repo.path()).args(["recipe", "--replay", "1"]), 0);
     assert_eq!(body["commits_replayed"], 1);
     assert_eq!(body["caught"], 2);
     assert_eq!(body["false_alarms"], 0);
@@ -189,8 +188,8 @@ fn census_counts_alternatives() {
         0,
     );
     let alts = body["alternatives"].as_array().unwrap();
-    assert_eq!(alts[0]["files"], 5);
-    assert_eq!(alts[0]["by_language"]["Rust"], 5);
+    assert_eq!(alts[0]["files"], 6);
+    assert_eq!(alts[0]["by_language"]["Rust"], 6);
     assert_eq!(alts[1]["files"], 0);
 }
 

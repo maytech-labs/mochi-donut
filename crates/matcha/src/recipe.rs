@@ -7,8 +7,8 @@ use std::path::Path;
 use mochi_index::{CoChange, Commit};
 use serde::Serialize;
 
-/// Thresholds for calling a file a companion. Defaults from the design doc:
-/// at least 90% of at least 5 changes, so `--check` stays quiet unless sure.
+/// Thresholds for calling a file a companion. Defaults: at least 90% of at
+/// least 6 changes, so `--check` stays quiet unless sure (ADR 0012).
 #[derive(Debug, Clone, Copy)]
 pub struct Thresholds {
     pub min_support: u32,

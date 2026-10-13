@@ -84,7 +84,7 @@ struct RecipeArgs {
     #[arg(long, default_value_t = 2000)]
     history: usize,
     /// Least number of earlier changes to a file before it predicts anything.
-    #[arg(long, default_value_t = 5)]
+    #[arg(long, default_value_t = 6)]
     min_support: u32,
     /// Least share of those changes that included the companion, 0 to 1.
     #[arg(long, default_value_t = 0.9)]

@@ -1,6 +1,6 @@
 # 0008. How recipe decides a file is missing, and how we measure it
 
-- **Status:** Accepted
+- **Status:** Accepted. Default `--min-support` changed to 6 by [0012](0012-recipe-support-six.md).
 - **Date:** 2026-10-12
 
 ## Context

@@ -168,11 +168,11 @@ $ matcha recipe --check            # against the working tree
 - **Co-change statistics:** for each pair of files (and each pair of path patterns, such as `routes/*.rs` and `tests/contract/*.rs`), how often they change in the same commit, as support and confidence. Patterns come from grouping paths that share structure.
 - **Similar changes:** `--like` finds past commits by their message and their changed files, then reports what those commits had in common. With no message, it uses the current diff to find similar past changes.
 - **Fix hints:** when a missing companion file is generated, `recipe` looks for the command that regenerates it: in the `Makefile` and `package.json` scripts, and in commit messages and docs that name both.
-- `--check` runs before a commit and only reports rules with high confidence and enough history (defaults: 90% of at least 5 changes), so it stays quiet unless it's sure.
+- `--check` runs before a commit and only reports rules with high confidence and enough history (defaults: 90% of at least 6 changes), so it stays quiet unless it's sure.
 
 **Done when.** Replaying Anchor's last 20 feature PRs with the final commit's companion files removed, `recipe --check` names the missing files with at least 80% recall and almost no false alarms (precision of at least 90%).
 
-**Status (2026-10-12): built, below the bar.** `--check`, `--commit`, `--like`, and `--replay` work. Measured with `--replay`: 80% precision on Anchor and 82% on Ghostty, against the 90% bar. The recall bar turned out to need labeled companion files to measure fairly. Details, the scoring rules, and what to try next are in [ADR 0008](decisions/0008-recipe-scoring.md). Path patterns in `--check` aren't built yet.
+**Status (2026-10-12): built, below the bar.** `--check`, `--commit`, `--like`, and `--replay` work. Measured with `--replay` at the defaults: 100% precision on Ghostty, 97% on vim, 85% on Anchor, and 78% on MoltenVK, against the 90% bar. Precision depends on how a repo commits more than on the scoring, so the bar is per repo. The recall bar turned out to need labeled companion files to measure fairly. Scoring and measurement are in [ADR 0008](decisions/0008-recipe-scoring.md); the defaults and what didn't help are in [ADR 0012](decisions/0012-recipe-support-six.md). Path patterns in `--check` aren't built yet.
 
 #### `drift`: are the docs still true?
 

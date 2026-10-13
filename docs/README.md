@@ -16,3 +16,4 @@
 - [0009 A release profile tuned for small and fast](decisions/0009-release-profile.md)
 - [0010 `make install` into /usr/local/bin](decisions/0010-make-install.md)
 - [0011 This repo is its own Homebrew tap](decisions/0011-homebrew-tap.md)
+- [0012 recipe needs six earlier changes; commit weighting didn't help](decisions/0012-recipe-support-six.md)

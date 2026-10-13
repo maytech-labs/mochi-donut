@@ -50,7 +50,7 @@ Note: Homebrew has an unrelated `matcha` (an RSS digest tool). The formula confl
 
 ## Roadmap
 
-1. `matcha census` and `matcha recipe` (built; `recipe` is at 80 to 82% precision against a 90% bar, see [ADR 0008](docs/decisions/0008-recipe-scoring.md))
+1. `matcha census` and `matcha recipe` (built; `recipe` clears its 90% precision bar on Ghostty and vim but not on Anchor, see [ADR 0012](docs/decisions/0012-recipe-support-six.md))
 2. `yuzu status` and `yuzu check`, run as a pre-command hook
 3. `matcha drift` and `matcha ledger`
 4. `yuzu probe`
