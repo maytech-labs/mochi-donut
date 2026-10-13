@@ -36,7 +36,30 @@ The design is in [docs/design.md](docs/design.md). Decisions are in [docs/decisi
 5. **Nothing leaves the machine.** No telemetry, no network calls except those a command is explicitly for (`yuzu probe`).
 6. **Output that teaches.** Every error and every failed check says what to do next.
 7. **No `unsafe`** (forbidden workspace-wide). No `unwrap`/`expect` outside tests, except with a comment proving it can't fail.
-8. **Tests run the real thing.** Integration tests run the built binary against real temporary git repos. Don't mock our own code.
+8. **Two kinds of test, with different jobs.** Unit tests drive the code; integration tests pin the contract and run the real thing. See [Testing](#testing).
+
+## Testing
+
+Two kinds of test ([ADR 0026](docs/decisions/0026-two-kinds-of-test.md)). They have different jobs, so they follow different rules.
+
+### Unit tests: does the code do what it says?
+
+- **Where:** a `#[cfg(test)] mod tests` beside the code.
+- **Job:** drive the code test-first, and show each function does what its doc comment says. Cover edge cases here; they're cheap.
+- **How:** call one function or type directly with plain inputs. No processes, and no files unless the function is about files.
+- **Lifetime:** short. They follow the code's shape, so they change when it does. Rewrite or delete them freely in a refactor.
+
+### Integration tests: does the tool still keep its promises?
+
+- **Where:** `crates/<tool>/tests/`.
+- **Job:** pin the contract, everything a user or agent relies on. If code changes and these pass *without being edited*, nothing regressed.
+- **How:** run the built binary (`Command::cargo_bin`) the way an agent would, and judge it only by inputs and outputs.
+  - **Inputs:** arguments, stdin, environment variables, files, a git repo.
+  - **Outputs:** stdout (prefer `--json`), the exit code, stderr, and side effects (files written, logs appended), which are outputs too.
+- **No mocks of our own code.** Use real git repos in temp directories and real local servers. Replace what we don't control (gh, ssh, aws, a browser, the home directory, agent transcripts) through the seams the binary already reads, such as `PATH`, `--browser`, `HOME`, `XDG_*`, `GH_CONFIG_DIR`, and `--dir`. That's dependency injection at the process boundary: the code under test can't tell.
+- **Assert what callers depend on:** JSON fields, exit codes, and the phrases a message must carry. Don't assert incidental layout, or the test churns.
+- **Lifetime:** long. Change one only when the contract genuinely changes: a flag, a JSON field, an exit code, or a message agents act on. That's a breaking change, so the commit is marked `!` or an ADR says why.
+- **Coverage:** every command, flag, exit code, and user-visible behavior has one, heuristics included. A behavior that only unit tests cover isn't protected from regressions.
 
 ## Recording decisions
 
