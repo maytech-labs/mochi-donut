@@ -6,7 +6,7 @@
 | [matcha/](matcha/README.md) | What the repo knows: `census`, `recipe`, `drift`, `ledger`, `eval` |
 | [yuzu/](yuzu/README.md) | What the environment is: `status`, `check`, `probe`, `whoami`, `wait`, `sessions` |
 | [ube/](ube/README.md) | The change in hand: `plan`, `run`, `done`, `mutate` |
-| [taro/](taro/README.md) | Proposed: the forge and the team: `ready`, `reviews`, `owners`, `flaky`, `cleanup` |
+| [taro/](taro/README.md) | The forge and the team: `ready`, `reviews`, `owners`, `flaky`, `cleanup` |
 | [decisions/](decisions/) | Every decision, as an ADR, never rewritten. Copy [0000-template.md](decisions/0000-template.md) to add one. |
 
 Each tool's folder has the same pages, so they're easy to find:
@@ -19,7 +19,7 @@ Each tool's folder has the same pages, so they're easy to find:
 | `config.md` | Configuration and the files the tool writes, where there are any |
 | `agents.md` | How agents reach it: hooks, MCP tools, the Claude Code skill, and trigger lines |
 
-Proposed tools have `README.md`, `design.md`, and a planned `usage.md`; the rest come when they're built.
+taro has no `config.md`: it has nothing to configure.
 
 ## Decisions
 
@@ -50,5 +50,6 @@ Proposed tools have `README.md`, `design.md`, and a planned `usage.md`; the rest
 - [0025 yuzu sessions: tool use from agent transcripts, and a log of the hook's asks and denies](decisions/0025-yuzu-sessions.md)
 - [0026 Two kinds of test: unit tests drive the code, integration tests pin the contract](decisions/0026-two-kinds-of-test.md)
 - [0027 A docs folder per tool, with the same pages in each](decisions/0027-docs-per-tool.md)
-- [0028 Propose ube (the change in hand) and taro (the forge and the team)](decisions/0028-propose-ube-and-taro.md) (amended)
+- [0028 Propose ube (the change in hand) and taro (the forge and the team)](decisions/0028-propose-ube-and-taro.md)
 - [0029 ube: checks by package from what the repo declares, results by tree, line-based mutations](decisions/0029-ube.md)
+- [0030 taro: gh for the forge, conventions from merged PRs, cleanup by proof](decisions/0030-taro.md)

@@ -1,9 +1,9 @@
 # taro design
 
 <!-- matcha: links-only -->
-<!-- A proposal: it names commands and files that don't exist yet. -->
+<!-- Its examples name files and settings in other repos. -->
 
-- **Status:** Proposed. Nothing here is built. See [ADR 0028](../decisions/0028-propose-ube-and-taro.md).
+- **Status:** Built (2026-10-13). Proposed in [ADR 0028](../decisions/0028-propose-ube-and-taro.md); how it was built, and where it differs from this design, is in [ADR 0030](../decisions/0030-taro.md).
 - **Date:** 2026-10-13
 
 ## Summary
@@ -87,6 +87,18 @@ Lists local and remote branches whose content is in the base branch, proved by a
 ### Data
 
 Nothing stored, except an optional short-lived cache of CI history for `flaky`. Credentials stay with `gh` and `glab`.
+
+## Status (2026-10-13)
+
+All five commands are built. Differences from the design above:
+
+- **GitHub only.** GitLab says it isn't supported yet, as `yuzu wait ci` does.
+- **Auth failures point at `yuzu whoami --verify`** instead of sharing its code.
+- **Conventions need 10 merged PRs**, and block only when at least 90% of them hold (warn from 60%).
+- **When required checks can't be read** (rulesets and branch protection return 403 on a free private repo), every check counts, and the output says so.
+- **No `taro land`**: taro reports, and merging stays with the user.
+
+Tried on this repo: `taro ready 6` saw two passing checks and too few merged PRs to learn conventions from; `taro cleanup --remote` kept `feat/ube` and the open Dependabot branch, naming the commits not in `main`. Fixtures merged by merge commit, rebase, and squash are each proved, and a branch half cherry-picked is kept.
 
 ## Done when
 

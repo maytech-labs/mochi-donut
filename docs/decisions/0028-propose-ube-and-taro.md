@@ -1,6 +1,6 @@
 # 0028. Propose ube (the change in hand) and taro (the forge and the team)
 
-- **Status:** Accepted for ube, built per [0029](0029-ube.md); taro still proposed
+- **Status:** Accepted: ube built per [0029](0029-ube.md), taro per [0030](0030-taro.md)
 - **Date:** 2026-10-13
 
 ## Context

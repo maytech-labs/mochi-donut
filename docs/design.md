@@ -3,9 +3,9 @@
 <!-- matcha: links-only -->
 <!-- It's a proposal, and its examples quote other repos, so `matcha drift` checks only its links. -->
 
-- **Status:** Accepted for matcha, yuzu, and ube, which are built. taro is proposed.
+- **Status:** Accepted. matcha, yuzu, ube, and taro are built; each tool's design says how far.
 - **Date:** 2026-10-12, updated 2026-10-13
-- **Tools:** `matcha` (what the repo knows), `yuzu` (what the user's environment is), `ube` (the change in hand), and, proposed, `taro` (the forge and the team)
+- **Tools:** `matcha` (what the repo knows), `yuzu` (what the user's environment is), `ube` (the change in hand), and `taro` (the forge and the team)
 
 This doc is the design across the tools: why they exist, how they're split, how agents find them, and how they roll out. Each tool's own design, usage, and configuration are in its folder: [matcha/](matcha/README.md), [yuzu/](yuzu/README.md), [ube/](ube/README.md), [taro/](taro/README.md).
 
@@ -112,9 +112,9 @@ Each tool's commands, with their problems, designs, bars, and status, are in its
 - [matcha/design.md](matcha/design.md): the index, `census`, `recipe`, `drift`, `ledger`, and `eval`
 - [yuzu/design.md](yuzu/design.md): `check`, `probe`, `whoami`, `wait`, and `sessions`
 - [ube/design.md](ube/design.md): `plan`, `run`, `done`, and `mutate`
-- [taro/design.md](taro/design.md) (proposed): `ready`, `reviews`, `owners`, `flaky`, and `cleanup`
+- [taro/design.md](taro/design.md): `ready`, `reviews`, `owners`, `flaky`, and `cleanup`
 
-### Two more tools: ube (built) and taro (proposed)
+### Two more tools: ube and taro
 
 Building and merging mochi-donut with these tools showed two kinds of knowledge neither has. They follow the same split by what a tool knows, and each has a different trust boundary, which is why they're separate:
 
@@ -123,7 +123,7 @@ Building and merging mochi-donut with these tools showed two kinds of knowledge 
 | **`ube`** | The change in hand: which checks apply, whether they ran on this exact tree, what failed | It runs the repo's own code (tests, builds). matcha only reads, and must stay safe to call anywhere. |
 | **`taro`** | The forge and the team: PR readiness, reviews, owners, flaky checks, merged branches | Everything it does is a network call to a forge. yuzu's check runs before every command and must stay local. |
 
-Both started as proposals with measurable bars, per [ADR 0004](decisions/0004-prove-before-announcing.md) and [ADR 0028](decisions/0028-propose-ube-and-taro.md). ube is built ([ADR 0029](decisions/0029-ube.md)); its bars are still to measure.
+Both started as proposals with measurable bars, per [ADR 0004](decisions/0004-prove-before-announcing.md) and [ADR 0028](decisions/0028-propose-ube-and-taro.md). Both are built ([ADR 0029](decisions/0029-ube.md), [ADR 0030](decisions/0030-taro.md)); their bars are still to measure.
 
 ## How agents find the tools
 
@@ -167,7 +167,7 @@ Using the tools in real sessions showed four gaps the design didn't plan for. Ea
 | 5 | MCP server, skill, `agent-guide`; try both tools on a second repo | A repo with a different language and history |
 | 6 | `yuzu whoami`, `wait`, `sessions`; `matcha eval` (built) | The friction that prompted each, replayed; `evals/` for matcha's heuristics |
 | 7 | `ube` (built) | Anchor, this repo, and one other: the last 20 PRs' CI failures |
-| 8 | `taro` (proposed) | Two team repos' last 30 merged PRs |
+| 8 | `taro` (built) | Two team repos' last 30 merged PRs |
 
 After each phase, decide from the results whether to continue, change course, or stop. Each decision gets an ADR.
 

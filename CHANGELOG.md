@@ -20,7 +20,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `yuzu hook claude-code`: `check` as a Claude Code `PreToolUse` hook.
 - `matcha mcp` and `yuzu mcp`: each tool's commands as MCP tools over stdio, with descriptions written as triggers.
 - A Claude Code plugin marketplace in this repo: `mochi-donut` (MCP servers and skills) and `mochi-donut-hooks` (yuzu's check and matcha's recorder).
-- Design doc and ADRs 0001–0029.
+- Design doc and ADRs 0001–0030.
 - `make install` (default `/usr/local/bin`) and a Homebrew formula (`brew install --HEAD mochi-donut` from this repo's tap).
 - `yuzu whoami`: which account gh, git, ssh, and AWS act as here, and what overrides it; `--verify` asks each service.
 - `yuzu wait`: wait for CI (GitHub), a port, a URL, a file, or a command, with a timeout and a clear exit code.
@@ -28,6 +28,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `yuzu sessions`: how agents used given tools, from Claude Code transcripts, including unprompted use; the hook now logs its asks and denies for review.
 
 - `ube`: the change in hand. `plan` picks the repo's own checks for what changed (packages and their dependents); `run` runs them and reports each failure in a few lines with a rerun command, keyed to the exact tree; `done` checks the change is proven; `mutate` finds changed lines no test proves. MCP tools, a skill, and an optional Stop hook.
+
+- `taro`: the forge and the team. `ready` lists every blocker before a merge, with conventions learned from merged PRs; `reviews` lists open threads; `owners` reads CODEOWNERS and history; `flaky` finds checks that fail then pass on one commit; `cleanup` proves which branches are merged, whatever the merge method. MCP tools and a skill.
 
 ### Changed
 

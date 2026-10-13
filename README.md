@@ -2,7 +2,7 @@
 
 Tools that help AI coding agents work in a repo the way a careful teammate would: with evidence about how things are done here, and without touching the wrong environment.
 
-> **Status: pre-release.** matcha, yuzu, and ube are built and tested; taro is proposed. Nothing is published yet; see the [roadmap](#roadmap) and the [design](docs/design.md).
+> **Status: pre-release.** All four tools are built and tested. Nothing is published yet. Nothing is published yet; see the [roadmap](#roadmap) and the [design](docs/design.md).
 
 Agents start every session with no memory. They guess the house style, forget the companion edits a change needs, trust docs that have drifted, and run commands against whatever cluster or account the shell happens to point at. mochi-donut answers those questions from the repo's own history and from a declaration of your environments, in a form agents can act on.
 
@@ -13,7 +13,7 @@ Like a pon de ring, it's a ring of separate pieces. Each tool is named after a m
 | **[matcha](docs/matcha/README.md)** | The repo: its files, history, and docs | `census` (how is this usually done here?), `recipe` (what else changes with this?), `drift` (are the docs still true?), `ledger` (what did I verify, and what did I assume?), `eval` (are the answers still right?) |
 | **[yuzu](docs/yuzu/README.md)** | Your environment: clusters, accounts, hosts, browser | `status` (where am I?), `check` (what will this command touch, and is it allowed?), `probe` (does it work from where the user is?), `whoami` (which account will this act as?), `wait` (is it done yet?), `sessions` (how do agents use these tools?) |
 | **[ube](docs/ube/README.md)** | The change in hand: which checks apply, and whether they passed on this code | `plan`, `run`, `done`, `mutate` |
-| **[taro](docs/taro/README.md)** (proposed) | The forge and the team: reviews, checks, owners, branches | `ready`, `reviews`, `owners`, `flaky`, `cleanup` |
+| **[taro](docs/taro/README.md)** | The forge and the team: reviews, checks, owners, branches | `ready`, `reviews`, `owners`, `flaky`, `cleanup` |
 
 Every command has `--json` output and stable exit codes, and each tool prints a guide written for agents:
 
@@ -43,10 +43,10 @@ make uninstall
 With Cargo:
 
 ```sh
-cargo install --git https://github.com/trammel-may/mochi-donut mochi-matcha mochi-yuzu mochi-ube
+cargo install --git https://github.com/trammel-may/mochi-donut mochi-matcha mochi-yuzu mochi-ube mochi-taro
 ```
 
-Pick one way; two installs means two copies on your `PATH`. The packages are named `mochi-matcha`, `mochi-yuzu`, and `mochi-ube`; the commands they install are `matcha`, `yuzu`, and `ube`.
+Pick one way; two installs means two copies on your `PATH`. The packages are named `mochi-matcha`, `mochi-yuzu`, `mochi-ube`, and `mochi-taro`; the commands they install are `matcha`, `yuzu`, `ube`, and `taro`.
 
 Note: Homebrew has an unrelated `matcha` (an RSS digest tool). The formula conflicts with it, and if you install another way, whichever comes first on your `PATH` wins.
 
@@ -98,13 +98,15 @@ When you check or assume a fact                   matcha ledger add verified|ass
 Before committing                                 matcha recipe --check; matcha ledger check --diff
 When it works for you but not the user            yuzu probe <url>
 To test a change, and before saying it's done       ube run; ube done
+Before asking to merge                            taro ready
+Before debugging a CI failure                     taro flaky
 Before pushing, or when auth fails                yuzu whoami
 Instead of sleep or a poll loop                   yuzu wait ci|port|url|file|cmd ...
 ```
 
 ## What stays on your machine
 
-Nothing leaves it: no telemetry, and the only network calls are the ones a command is for: `yuzu probe`, `yuzu whoami --verify`, `yuzu wait` (CI, a port, a URL), and `matcha eval` when a spec names a repo by URL. The tools write only these files, all local:
+Nothing leaves it: no telemetry, and the only network calls are the ones a command is for: `yuzu probe`, `yuzu whoami --verify`, `yuzu wait` (CI, a port, a URL), `taro ready`, `reviews`, and `flaky` (GitHub, through `gh`), and `matcha eval` when a spec names a repo by URL. The tools write only these files, all local:
 
 | File | Written by | Holds |
 |---|---|---|
@@ -123,7 +125,7 @@ Nothing leaves it: no telemetry, and the only network calls are the ones a comma
 5. MCP servers and a Claude Code plugin with skills and hooks (built, see [ADR 0019](docs/decisions/0019-mcp-and-plugin.md))
 6. `yuzu whoami`, `yuzu wait`, `yuzu sessions`, and `matcha eval`, from friction in real sessions (built, see ADRs [0022](docs/decisions/0022-yuzu-whoami.md) to [0025](docs/decisions/0025-yuzu-sessions.md))
 7. `ube`: the change in hand (built, see [its design](docs/ube/design.md) and [ADR 0029](docs/decisions/0029-ube.md))
-8. `taro`: the forge and the team (proposed, see [its design](docs/taro/design.md))
+8. `taro`: the forge and the team (built, see [its design](docs/taro/design.md) and [ADR 0030](docs/decisions/0030-taro.md))
 
 Nothing is announced or published to crates.io until the first two steps prove useful ([ADR 0004](docs/decisions/0004-prove-before-announcing.md)).
 
