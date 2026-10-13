@@ -259,12 +259,3 @@ fn the_hook_ignores_other_tools_and_asks_on_bad_input() {
     assert_eq!(hook(h.path(), read), "");
     assert!(hook(h.path(), "not json").contains("\"permissionDecision\":\"ask\""));
 }
-
-#[test]
-fn probe_is_not_built_yet() {
-    let h = home(None);
-    yuzu(h.path())
-        .args(["probe", "https://example.test"])
-        .assert()
-        .code(3);
-}

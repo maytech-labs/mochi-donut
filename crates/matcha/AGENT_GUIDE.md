@@ -54,4 +54,4 @@ Flags on every command
 
 Exit codes
   0  ran, nothing wrong      1  a check failed
-  2  bad usage or no repo    3  not built yet
+  2  bad usage or no repo

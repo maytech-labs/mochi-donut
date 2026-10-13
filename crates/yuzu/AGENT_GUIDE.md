@@ -4,7 +4,8 @@ When to run what
   Before acting on a cluster, cloud account, or host   yuzu                       where the shell points, and whose it is
   Before a command that might change one               yuzu check -- '<command>'  exit 1 if it needs the user's approval
   Every Bash command, automatically                    yuzu hook claude-code      a Claude Code PreToolUse hook
-  Not built yet (exit 3)                               yuzu probe <url>
+  When it works from your shell but the user says it doesn't  yuzu probe <url>
+                                                       curl and the user's browser side by side, and the likely cause
 
 What check looks at
   kubectl, helm      the kube context: --context, else current-context in $KUBECONFIG or ~/.kube/config
@@ -20,6 +21,15 @@ Decisions
   anything in an env with agents = "none"            denied
   When blocked, don't look for another way to run it. Use the safe target the
   message names, or ask the user.
+
+What probe does
+  Loads the URL with curl and with headless Chrome (or Edge, Brave, Chromium;
+  --browser <path> to pick) in an empty temporary profile: no cookies,
+  history, or passwords are read. Reports DNS, each side's result, and a
+  likely cause when they differ: macOS Local Network permission, Secure DNS,
+  a CA only curl trusts, a dead IPv6 address, mismatched proxies. Exit 0 only
+  when both sides load. Don't ask the user to check their browser first; run
+  this and tell them the cause and the fix.
 
 Declaring environments: ~/.config/yuzu/environments.toml (or $YUZU_CONFIG)
   [[env]]
@@ -38,5 +48,5 @@ Flags on every command
 Exit codes
   0  ran, nothing wrong (or the command is allowed)
   1  a check failed (the command needs approval or is denied)
-  2  bad usage       3  not built yet
+  2  bad usage
   A config that doesn't parse blocks every check until it's fixed.

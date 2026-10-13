@@ -16,8 +16,9 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `matcha hook claude-code`: a `PostToolUse` hook that records Bash commands and their output, for `ledger add verified --cmd`.
 - `yuzu` (status): the current kube context, aws profile, and git remotes, and whose they are.
 - `yuzu check`: what a command would touch through `kubectl`, `helm`, `ssh`, `scp`, `rsync`, `git push`, and `aws`, and whether it needs the user's approval.
+- `yuzu probe <url>`: load a URL from the terminal (curl) and from the user's browser (headless Chrome, Edge, Brave, or Chromium, with an empty temporary profile), and name the likely cause when they differ, such as macOS's Local Network permission.
 - `yuzu hook claude-code`: `check` as a Claude Code `PreToolUse` hook.
-- Design doc and ADRs 0001–0017.
+- Design doc and ADRs 0001–0018.
 - `make install` (default `/usr/local/bin`) and a Homebrew formula (`brew install --HEAD mochi-donut` from this repo's tap).
 
 ### Changed

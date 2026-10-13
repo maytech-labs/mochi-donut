@@ -5,6 +5,7 @@
 mod config;
 mod env;
 mod policy;
+mod probe;
 mod shell;
 mod status;
 mod targets;
@@ -14,7 +15,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use mochi_common::{Format, exit, not_implemented, print_json};
+use mochi_common::{Format, exit, print_json};
 use serde::Serialize;
 
 use crate::config::{Agents, Config};
@@ -55,7 +56,17 @@ enum Command {
         agent: HookAgent,
     },
     /// Check a URL the way the user's browser would, and report the exact failure.
-    Probe { url: String },
+    Probe {
+        /// The http or https URL the user opens.
+        url: String,
+        /// The browser to probe with (Chrome, Edge, Brave, or Chromium).
+        /// Default: $YUZU_BROWSER, else the first one installed.
+        #[arg(long, value_name = "PATH")]
+        browser: Option<String>,
+        /// Seconds to wait for each load.
+        #[arg(long, default_value_t = 15, value_name = "SECS")]
+        timeout: u64,
+    },
     /// Print a short guide to yuzu, written for AI agents.
     AgentGuide,
 }
@@ -81,9 +92,131 @@ fn main() -> ExitCode {
         Command::Hook {
             agent: HookAgent::ClaudeCode,
         } => run_claude_hook(ctx),
-        Command::Probe { .. } => not_implemented(format, "yuzu", "probe"),
+        Command::Probe {
+            url,
+            browser,
+            timeout,
+        } => run_probe(&ctx, &url, browser.as_deref(), timeout, format),
     };
     ExitCode::from(code)
+}
+
+fn run_probe(ctx: &Ctx, url: &str, browser: Option<&str>, timeout: u64, format: Format) -> u8 {
+    let target = match probe::parse_url(url) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("{e}");
+            return exit::USAGE;
+        }
+    };
+    let timeout = std::time::Duration::from_secs(timeout.max(1));
+    let dns = probe::resolve(&target.host, target.port);
+    let terminal = probe::curl(&target, None, timeout);
+    // With both address families, try each, so a dead AAAA record shows.
+    let (v4, v6) = if !dns.v4.is_empty() && !dns.v6.is_empty() {
+        (
+            Some(probe::curl(&target, Some(4), timeout)),
+            Some(probe::curl(&target, Some(6), timeout)),
+        )
+    } else {
+        (None, None)
+    };
+    let bin = probe::find_browser(browser, ctx);
+    let load = bin
+        .as_ref()
+        .map(|b| probe::browser_load(b, &target, timeout));
+    let proxies = probe::proxies(ctx);
+    let ca_env: Vec<String> = ["CURL_CA_BUNDLE", "SSL_CERT_FILE", "SSL_CERT_DIR"]
+        .iter()
+        .filter_map(|k| ctx.var(k).map(|v| format!("{k}={v}")))
+        .collect();
+    let diagnosis = probe::diagnose(&probe::Facts {
+        target: &target,
+        dns: &dns,
+        terminal: &terminal,
+        terminal_v4: v4.as_ref(),
+        terminal_v6: v6.as_ref(),
+        browser: load.as_ref(),
+        proxies: &proxies,
+        macos: cfg!(target_os = "macos"),
+        ca_env,
+        now: mochi_common::time::unix_now(),
+    });
+    let ok = terminal.ok && load.as_ref().is_some_and(|l| l.attempt.ok);
+
+    match format {
+        Format::Json => print_json(&serde_json::json!({
+            "url": target.url,
+            "host": target.host,
+            "port": target.port,
+            "ok": ok,
+            "dns": dns,
+            "terminal": terminal,
+            "terminal_ipv4": v4,
+            "terminal_ipv6": v6,
+            "browser": load,
+            "browser_found": bin.is_some(),
+            "proxies": proxies,
+            "diagnosis": diagnosis,
+        })),
+        Format::Text => {
+            let addrs: Vec<&str> = dns.v4.iter().chain(&dns.v6).map(String::as_str).collect();
+            let dns_line = match (&dns.error, addrs.is_empty()) {
+                (Some(e), _) => format!("FAIL  {e}"),
+                (None, true) => "no addresses".to_owned(),
+                (None, false) => addrs.join(", "),
+            };
+            let row = |label: &str, value: &str| println!("  {label:<30}  {value}");
+            row(&format!("dns ({})", target.host), &dns_line);
+            row("terminal (curl)", &describe(&terminal));
+            for (label, a) in [("terminal over IPv4", &v4), ("terminal over IPv6", &v6)] {
+                if let Some(a) = a {
+                    row(label, &describe(a));
+                }
+            }
+            match &load {
+                Some(l) => {
+                    let label = match &l.version {
+                        Some(v) => format!("{} {v}", l.name),
+                        None => l.name.clone(),
+                    };
+                    row(&label, &describe(&l.attempt));
+                }
+                None => row(
+                    "browser",
+                    "not found: install Chrome, or pass --browser <path> (Edge, Brave, and Chromium work too)",
+                ),
+            }
+            for d in &diagnosis {
+                println!("  likely cause: {}", d.cause);
+                println!("    {}", d.evidence);
+                println!("    fix: {}", d.fix);
+            }
+            if !ok && diagnosis.is_empty() {
+                println!(
+                    "  No rule matches this combination. The lines above are everything yuzu saw; it won't guess."
+                );
+            }
+        }
+    }
+    if ok { exit::OK } else { exit::CHECK_FAILED }
+}
+
+/// `200   10.0.0.8   cert trusted` or `FAIL  ERR_ADDRESS_UNREACHABLE`.
+fn describe(a: &probe::Attempt) -> String {
+    if !a.ok {
+        return format!("FAIL  {}", a.error.as_deref().unwrap_or("no response"));
+    }
+    let mut parts = vec![a.status.map_or("loaded".to_owned(), |s| s.to_string())];
+    if let Some(ip) = &a.ip {
+        parts.push(ip.clone());
+    }
+    match a.cert_trusted {
+        Some(true) => parts.push("cert trusted".into()),
+        Some(false) => parts.push("cert NOT trusted".into()),
+        None => {}
+    }
+    parts.join("   ")
 }
 
 fn run_status(ctx: &Ctx, format: Format) -> u8 {
