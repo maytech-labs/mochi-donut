@@ -1,6 +1,6 @@
 # 0013. How yuzu check finds targets and decides
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0020](0020-yuzu-infra-and-cloud-clis.md)
 - **Date:** 2026-10-12
 
 ## Context

@@ -1,6 +1,6 @@
 # 0018. yuzu probe: curl and headless Chrome with an empty profile, and a few exact rules
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0021](0021-usability-from-trying-the-tools.md)
 - **Date:** 2026-10-12
 
 ## Context

@@ -1,6 +1,6 @@
 # 0012. recipe needs six earlier changes; commit weighting didn't help
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0021](0021-usability-from-trying-the-tools.md)
 - **Date:** 2026-10-12
 
 ## Context

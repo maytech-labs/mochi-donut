@@ -1,6 +1,6 @@
 # 0015. drift checks mechanical claims first, and stays quiet when unsure
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0021](0021-usability-from-trying-the-tools.md)
 - **Date:** 2026-10-12
 
 ## Context

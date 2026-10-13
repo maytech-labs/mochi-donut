@@ -20,10 +20,16 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `yuzu hook claude-code`: `check` as a Claude Code `PreToolUse` hook.
 - `matcha mcp` and `yuzu mcp`: each tool's commands as MCP tools over stdio, with descriptions written as triggers.
 - A Claude Code plugin marketplace in this repo: `mochi-donut` (MCP servers and skills) and `mochi-donut-hooks` (yuzu's check and matcha's recorder).
-- Design doc and ADRs 0001–0019.
+- Design doc and ADRs 0001–0021.
 - `make install` (default `/usr/local/bin`) and a Homebrew formula (`brew install --HEAD mochi-donut` from this repo's tap).
 
 ### Changed
 
+- `census` leaves out lockfiles and minified bundles, says how many matching files are tests (`--no-tests` drops them), and flags a pattern narrower than its word.
+- `recipe --like` keeps files most similar commits changed, matches words in changed paths too, groups sibling files, and says when the sample is small. `recipe --check` says when it can't judge.
+- `drift` checks naming affixes (`_cents`, `is_`) and has fewer false alarms on doc vocabulary, labels, and import paths.
+- `ledger check --diff` matches claims per sentence, catching paraphrases without flagging paragraphs that only share the topic.
+- `yuzu check` covers terraform, tofu, terragrunt, pulumi (`infra_dirs`), and gcloud, az, doctl, flyctl, heroku, vercel, netlify, wrangler (`cli_tools`).
+- `yuzu probe` names a certificate both sides reject as the server's problem, with a fix matched to curl's reason.
 - `recipe` needs 6 earlier changes to a file before it predicts anything, up from 5: higher precision on all four repos measured.
 - Release builds use fat LTO, one codegen unit, and `panic = "abort"`: 29% smaller and about 10% faster.

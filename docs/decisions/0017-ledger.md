@@ -1,6 +1,6 @@
 # 0017. ledger: local per-branch files, evidence required, matched by shared words
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0021](0021-usability-from-trying-the-tools.md)
 - **Date:** 2026-10-12
 
 ## Context
