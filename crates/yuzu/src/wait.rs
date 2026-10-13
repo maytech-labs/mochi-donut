@@ -365,7 +365,9 @@ fn summarize(checks: &[Check], elapsed: Duration) -> Observation {
         .filter(|c| c.state == State::Pending)
         .collect();
     if !pending.is_empty() {
-        let names: Vec<&str> = pending.iter().map(|c| c.name.as_str()).collect();
+        // Sorted, so a provider listing checks in a new order isn't a change.
+        let mut names: Vec<&str> = pending.iter().map(|c| c.name.as_str()).collect();
+        names.sort_unstable();
         return Observation::pending(format!(
             "{} of {} pending ({})",
             pending.len(),
@@ -455,6 +457,15 @@ mod tests {
         );
         assert!(!o.met && !o.settled);
         assert_eq!(o.detail, "1 of 2 pending (macos)");
+        let a = summarize(
+            &[check("b", State::Pending), check("a", State::Pending)],
+            short,
+        );
+        let b = summarize(
+            &[check("a", State::Pending), check("b", State::Pending)],
+            short,
+        );
+        assert_eq!(a.detail, b.detail);
         let o = summarize(
             &[check("linux", State::Passed), check("macos", State::Passed)],
             short,

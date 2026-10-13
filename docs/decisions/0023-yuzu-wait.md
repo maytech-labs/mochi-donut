@@ -5,7 +5,7 @@
 
 ## Context
 
-Waiting for CI took four tries in one session: `gh pr checks --watch` and `gh run watch` returned before the run finished, and two hand-written poll loops ended early. Agents wait constantly, and every hand-rolled loop is a new chance to get the timeout, the exit code, or the end condition wrong.
+Waiting for CI took four tries in one session. Two hand-written poll loops ended early, and `gh pr checks --watch` and `gh run watch` appeared to return before the run finished. Later it turned out the agent harness can report a background job finished while it's still running, so the `gh` watchers may not have been at fault. Agents wait constantly, and every hand-rolled loop is a new chance to get the timeout, the exit code, or the end condition wrong.
 
 ## Decision
 
@@ -29,4 +29,4 @@ Waiting for CI took four tries in one session: `gh pr checks --watch` and `gh ru
 ## Alternatives considered
 
 - **A third tool:** waiting is about the environment, which is yuzu's; a third binary goes against ADR 0003's two-tool split.
-- **`kubectl wait`, `gh run watch`, and friends:** each covers one thing, with its own flags and exit codes, and `gh run watch` is what returned early.
+- **`kubectl wait`, `gh run watch`, and friends:** each covers one thing, with its own flags and exit codes.
