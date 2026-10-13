@@ -12,12 +12,14 @@ Reading ready
   BLOCK items stop the merge; warn items are worth fixing. Conventions
   (changelog, ADR, Conventional Commits titles) come from the last 30 merged
   PRs, with the counts, and only once there are 10. If the required checks
-  can't be read (a free private repo), every check counts.
+  can't be read, every check counts. When GitHub says blocked for a reason
+  taro can't see, the rules item says so.
 
 Rules
   Don't merge or delete on your own judgment: report, and let the user act.
   cleanup never calls a branch safe without proof; trust its "keep" list.
-  If gh can't authenticate, `yuzu whoami --verify` shows why.
+  If gh can't authenticate, `yuzu whoami --verify` shows why. A stale
+  GH_TOKEN overrides every stored login.
 
 Flags on every command
   --json                   one JSON object on stdout

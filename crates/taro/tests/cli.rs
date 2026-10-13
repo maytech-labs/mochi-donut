@@ -196,6 +196,39 @@ fn cleanup_proves_every_merge_method_and_keeps_the_rest() {
 }
 
 #[test]
+fn cleanup_keeps_a_branch_checked_out_in_a_worktree() {
+    let w = merged_world();
+    // A new branch with no commits yet is "merged", but someone's on it.
+    w.git(&["branch", "started", "main"]);
+    let wt = w.dir.path().join("wt");
+    w.git(&["worktree", "add", "-q", wt.to_str().unwrap(), "started"]);
+    let body = w.json(&["cleanup", "--base", "main"], 0);
+    let started = body["branches"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["name"] == "started")
+        .unwrap()
+        .clone();
+    assert!(started["proof"].is_null(), "{started}");
+    assert!(
+        started["unsafe_because"]
+            .as_str()
+            .unwrap()
+            .contains("checked out in the worktree at")
+    );
+    let body = w.json(&["cleanup", "--base", "main", "--delete", "--yes"], 0);
+    assert!(
+        body["deleted"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|d| d != "started")
+    );
+    assert!(w.git(&["branch", "--list", "started"]).contains("started"));
+}
+
+#[test]
 fn cleanup_deletes_only_proved_branches_and_only_when_told() {
     let w = merged_world();
     // No terminal to ask on, and no --yes: refuse.
@@ -323,6 +356,74 @@ fn ready_lists_each_blocker_and_learned_convention() {
         ));
 }
 
+/// A gh stand-in for PR 8, every check reported, with `graphql` and
+/// `rules` answering as given and classic protection unreadable (403, as
+/// for anyone without admin rights).
+fn gh_pr8(merge_state: &str, graphql: &str, rules: &str) -> String {
+    format!(
+        r#"case "$*" in
+  "pr view 8 "*) echo '{{"number":8,"title":"fix: y","url":"u","state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","mergeStateStatus":"{merge_state}","reviewDecision":"","headRefName":"fix/y","baseRefName":"main","files":[{{"path":"src/a.rs"}}],"statusCheckRollup":[{{"__typename":"CheckRun","name":"linux","status":"COMPLETED","conclusion":"SUCCESS"}},{{"__typename":"CheckRun","name":"docs","status":"COMPLETED","conclusion":"FAILURE","detailsUrl":"https://ci/9"}}]}}';;
+  *graphql*) echo '{graphql}';;
+  *"rules/branches"*) echo '{rules}';;
+  *"protection"*) echo 'gh: Must have admin rights to Repository. (HTTP 403)' >&2; exit 1;;
+  "pr list "*) echo '[]';;
+  *) echo "unexpected: $*" >&2; exit 1;;
+esac"#
+    )
+}
+
+#[test]
+fn ready_judges_checks_by_what_github_says_is_required() {
+    let w = World::new();
+    let threads = r#""reviewThreads":{"nodes":[]}"#;
+    // GitHub says only linux is required: the failing docs check warns.
+    let graphql = format!(
+        r#"{{"data":{{"repository":{{"pullRequest":{{{threads},"commits":{{"nodes":[{{"commit":{{"statusCheckRollup":{{"contexts":{{"nodes":[{{"__typename":"CheckRun","name":"linux","isRequired":true}},{{"__typename":"CheckRun","name":"docs","isRequired":false}}]}}}}}}}}]}}}}}}}}}}"#
+    );
+    w.stub_gh(&gh_pr8("UNSTABLE", &graphql, "[]"));
+    let body = w.json(&["ready", "8", "--repo", "acme/app"], 0);
+    let checks = body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["name"] == "checks")
+        .unwrap()
+        .clone();
+    assert_eq!(checks["state"], "warn", "{body}");
+    assert_eq!(body["ready"], true);
+
+    // No isRequired, no rulesets, and protection unreadable: that isn't
+    // "nothing required", so the failing check blocks.
+    let graphql = format!(r#"{{"data":{{"repository":{{"pullRequest":{{{threads}}}}}}}}}"#);
+    w.stub_gh(&gh_pr8("BLOCKED", &graphql, "[]"));
+    w.taro()
+        .args(["ready", "8", "--repo", "acme/app"])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("Failed: docs (https://ci/9)."))
+        .stdout(predicate::str::contains("every check counts"));
+}
+
+#[test]
+fn ready_blocks_when_github_does_for_a_reason_taro_cant_see() {
+    let w = World::new();
+    let graphql = r#"{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"contexts":{"nodes":[{"__typename":"CheckRun","name":"linux","isRequired":true},{"__typename":"CheckRun","name":"docs","isRequired":false}]}}}}]}}}}}"#;
+    // Signed commits, say: everything taro reads is fine, GitHub still says no.
+    w.stub_gh(&gh_pr8("BLOCKED", graphql, "[]"));
+    w.taro()
+        .args(["ready", "8", "--repo", "acme/app"])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("for a reason taro doesn't read"))
+        .stdout(predicate::str::contains("gh pr view 8 --web"));
+    w.stub_gh(&gh_pr8("BEHIND", graphql, "[]"));
+    w.taro()
+        .args(["ready", "8", "--repo", "acme/app"])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("gh pr update-branch 8"));
+}
+
 #[test]
 fn reviews_lists_open_threads() {
     let w = World::new();
@@ -366,6 +467,24 @@ esac"#,
 }
 
 #[test]
+fn flaky_ignores_reruns_of_green_runs_and_cancels() {
+    let w = World::new();
+    w.stub_gh(
+        r#"case "$*" in
+  *"actions/runs?"*) echo '{"workflow_runs":[
+    {"id":1,"name":"CI","head_sha":"a","conclusion":"success","run_attempt":2,"created_at":"2099-01-02T00:00:00Z","html_url":"https://ci/1"},
+    {"id":2,"name":"CI","head_sha":"b","conclusion":"cancelled","run_attempt":1,"created_at":"2099-01-03T00:00:00Z","html_url":"https://ci/2"},
+    {"id":3,"name":"CI","head_sha":"b","conclusion":"success","run_attempt":1,"created_at":"2099-01-04T00:00:00Z","html_url":"https://ci/3"}]}';;
+  *"runs/1/jobs"*) echo '{"jobs":[{"name":"check","conclusion":"success"}]}';;
+  *"runs/1/attempts/1/jobs"*) echo '{"jobs":[{"name":"check","conclusion":"success"}]}';;
+  *) echo "unexpected: $*" >&2; exit 1;;
+esac"#,
+    );
+    let body = w.json(&["flaky", "--repo", "acme/app"], 0);
+    assert_eq!(body["flaky"], json!([]), "{body}");
+}
+
+#[test]
 fn forge_errors_say_what_to_do() {
     let w = World::new();
     w.stub_gh("echo 'HTTP 401: Bad credentials (https://api.github.com/graphql)' >&2; exit 1");
@@ -374,6 +493,15 @@ fn forge_errors_say_what_to_do() {
         .assert()
         .code(2)
         .stderr(predicate::str::contains("yuzu whoami --verify"));
+    // A bad GH_TOKEN is named, and isn't mistaken for a missing PR.
+    w.git(&["checkout", "-q", "-b", "feat/x"]);
+    w.taro()
+        .args(["ready", "--repo", "acme/app"])
+        .env("GH_TOKEN", "bad")
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("GH_TOKEN is set"))
+        .stderr(predicate::str::contains("No open PR").not());
     w.taro()
         .args(["ready", "7", "--repo", "gitlab.com/a/b"])
         .assert()

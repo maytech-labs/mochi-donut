@@ -196,21 +196,15 @@ fn cmd_ready(repo: &Repo, pr: Option<u64>, format: Format) -> Result<u8, String>
         fields,
     ])?;
     let base = view["baseRefName"].as_str().unwrap_or("main").to_owned();
+    let answer = forge::graphql(repo, ready::QUERY, n).ok();
+    let reported = answer.as_ref().and_then(ready::required_reported);
+    let unresolved = answer.as_ref().and_then(ready::unresolved);
     let rules = forge::api_optional(
         repo,
         &format!("repos/{}/{}/rules/branches/{base}", repo.owner, repo.name),
     )?;
-    let protection = forge::api_optional(
-        repo,
-        &format!(
-            "repos/{}/{}/branches/{base}/protection/required_status_checks",
-            repo.owner, repo.name
-        ),
-    )?;
-    let required = required_checks(rules.as_ref(), protection.as_ref());
-    let unresolved = forge::graphql(repo, reviews::QUERY, n)
-        .ok()
-        .map(|a| reviews::threads(&a).iter().filter(|t| !t.resolved).count());
+    let protection = protection_checks(repo, &base)?;
+    let required = required_checks(reported, rules.as_ref(), protection.as_ref());
     let merged_json = forge::gh(&[
         "pr",
         "list",
@@ -268,16 +262,37 @@ fn cmd_ready(repo: &Repo, pr: Option<u64>, format: Format) -> Result<u8, String>
     })
 }
 
-/// Required check names from rulesets and branch protection, or `None`
-/// when neither could be read.
+/// The base branch's classic protection checks: `Some` with the answer,
+/// `Some(null)` when the branch isn't protected or requires no checks, and
+/// `None` when it can't be read (it needs admin rights, or a paid plan for
+/// a private repo).
+fn protection_checks(repo: &Repo, base: &str) -> Result<Option<serde_json::Value>, String> {
+    let path = format!(
+        "repos/{}/{}/branches/{base}/protection/required_status_checks",
+        repo.owner, repo.name
+    );
+    match forge::api(repo, &path) {
+        Ok(v) => Ok(Some(v)),
+        Err(e) if e.contains("not protected") || e.contains("not enabled") => {
+            Ok(Some(serde_json::Value::Null))
+        }
+        Err(e) if e.contains("403") || e.contains("404") || e.contains("Not Found") => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// The required check names, or `None` when they can't be told.
+///
+/// `reported` are the reported checks GitHub marks required for this PR.
+/// Rulesets and branch protection add required checks that haven't
+/// reported. Without `reported`, rulesets alone can't say: classic
+/// protection may require more, so it takes a readable protection answer.
 fn required_checks(
+    reported: Option<Vec<String>>,
     rules: Option<&serde_json::Value>,
     protection: Option<&serde_json::Value>,
 ) -> Option<Vec<String>> {
-    if rules.is_none() && protection.is_none() {
-        return None;
-    }
-    let mut names: Vec<String> = Vec::new();
+    let mut declared: Vec<String> = Vec::new();
     for r in rules.and_then(|r| r.as_array()).into_iter().flatten() {
         if r["type"] == "required_status_checks" {
             for c in r["parameters"]["required_status_checks"]
@@ -285,19 +300,19 @@ fn required_checks(
                 .into_iter()
                 .flatten()
             {
-                names.extend(c["context"].as_str().map(str::to_owned));
+                declared.extend(c["context"].as_str().map(str::to_owned));
             }
         }
     }
     if let Some(p) = protection {
-        names.extend(
+        declared.extend(
             p["contexts"]
                 .as_array()
                 .into_iter()
                 .flatten()
                 .filter_map(|c| c.as_str().map(str::to_owned)),
         );
-        names.extend(
+        declared.extend(
             p["checks"]
                 .as_array()
                 .into_iter()
@@ -305,6 +320,12 @@ fn required_checks(
                 .filter_map(|c| c["context"].as_str().map(str::to_owned)),
         );
     }
+    let mut names = match reported {
+        Some(r) => r,
+        None if protection.is_some() => Vec::new(),
+        None => return None,
+    };
+    names.extend(declared);
     names.sort();
     names.dedup();
     Some(names)
@@ -444,7 +465,7 @@ fn cmd_flaky(repo: &Repo, since: &str, format: Format) -> Result<u8, String> {
     let mut runs = Vec::new();
     for page in 1..=5 {
         let path = format!(
-            "repos/{}/{}/actions/runs?per_page=100&page={page}&created=>={date}",
+            "repos/{}/{}/actions/runs?per_page=100&page={page}&created=%3E%3D{date}",
             repo.owner, repo.name
         );
         let batch = flaky::runs(&forge::api(repo, &path)?);
@@ -483,10 +504,7 @@ fn cmd_flaky(repo: &Repo, since: &str, format: Format) -> Result<u8, String> {
             )?;
             for j in earlier["jobs"].as_array().into_iter().flatten() {
                 if let Some(name) = j["name"].as_str()
-                    && matches!(
-                        j["conclusion"].as_str(),
-                        Some("failure" | "timed_out" | "cancelled")
-                    )
+                    && matches!(j["conclusion"].as_str(), Some("failure" | "timed_out"))
                     && passed.contains(&name)
                     && !failed_before.iter().any(|f| f == name)
                 {
@@ -629,5 +647,35 @@ fn proof_label(p: Option<cleanup::Proof>) -> &'static str {
         Some(cleanup::Proof::Squashed) => "squashed into one commit there",
         Some(cleanup::Proof::SameContent) => "its files match",
         None => "",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn required_checks_are_unknown_unless_github_says() {
+        let rules = json!([{"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "deploy"}]}}]);
+        let empty = json!([]);
+        // isRequired answered: those, plus rules' checks not yet reported.
+        assert_eq!(
+            required_checks(Some(vec!["linux".into()]), Some(&rules), None),
+            Some(vec!["deploy".to_owned(), "linux".to_owned()])
+        );
+        // No isRequired and protection unreadable: an empty ruleset list
+        // doesn't mean nothing is required.
+        assert_eq!(required_checks(None, Some(&empty), None), None);
+        // An unprotected branch is an answer.
+        assert_eq!(
+            required_checks(None, Some(&empty), Some(&serde_json::Value::Null)),
+            Some(vec![])
+        );
+        let prot = json!({"contexts": ["ci/legacy"], "checks": [{"context": "linux"}]});
+        assert_eq!(
+            required_checks(None, None, Some(&prot)),
+            Some(vec!["ci/legacy".to_owned(), "linux".to_owned()])
+        );
     }
 }

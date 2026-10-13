@@ -36,11 +36,51 @@ fn item(name: &'static str, state: State, detail: impl Into<String>, fix: Option
     }
 }
 
+/// One GraphQL query for what `gh pr view` doesn't say: which reported
+/// checks are required for this PR (`isRequired` covers rulesets and branch
+/// protection, and needs only read access), and the review threads.
+pub const QUERY: &str = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){nodes{isResolved}} commits(last:1){nodes{commit{statusCheckRollup{contexts(first:100){nodes{__typename ... on CheckRun{name isRequired(pullRequestNumber:$number)} ... on StatusContext{context isRequired(pullRequestNumber:$number)}}}}}}}}}}";
+
+/// The required checks among those reported, from a `QUERY` answer, or
+/// `None` when the answer doesn't say (an older GitHub Enterprise without
+/// `isRequired`, or an error).
+pub fn required_reported(answer: &Value) -> Option<Vec<String>> {
+    let commit = answer.pointer("/data/repository/pullRequest/commits/nodes/0/commit")?;
+    let rollup = &commit["statusCheckRollup"];
+    if rollup.is_null() {
+        // Nothing reported yet: none of them can be required.
+        return Some(Vec::new());
+    }
+    let nodes = rollup.pointer("/contexts/nodes")?.as_array()?;
+    let mut names = Vec::new();
+    for n in nodes {
+        let name = n["name"].as_str().or_else(|| n["context"].as_str())?;
+        if n["isRequired"].as_bool()? {
+            names.push(name.to_owned());
+        }
+    }
+    Some(names)
+}
+
+/// Unresolved review threads in a `QUERY` (or reviews) answer.
+pub fn unresolved(answer: &Value) -> Option<usize> {
+    let nodes = answer
+        .pointer("/data/repository/pullRequest/reviewThreads/nodes")?
+        .as_array()?;
+    Some(
+        nodes
+            .iter()
+            .filter(|t| t["isResolved"].as_bool() != Some(true))
+            .count(),
+    )
+}
+
 /// Everything `ready` judges, gathered from the forge.
 pub struct Facts<'a> {
     /// `gh pr view --json` output.
     pub pr: &'a Value,
-    /// Required check names, when the forge would say.
+    /// Required check names, when the forge would say: those reported, and
+    /// those the rules require that haven't reported.
     pub required: Option<Vec<String>>,
     /// Unresolved review threads.
     pub unresolved: Option<usize>,
@@ -97,14 +137,18 @@ pub fn ready(f: &Facts) -> Vec<Item> {
             None,
         ),
     });
+    // GitHub reports BEHIND only when the base requires branches to be up
+    // to date, so it blocks.
     if s("mergeStateStatus") == "BEHIND" {
         items.push(item(
             "behind",
-            State::Warn,
-            format!("{} has moved on since it branched.", s("baseRefName")),
+            State::Block,
+            format!(
+                "{} has moved on, and its rules require the branch to be up to date.",
+                s("baseRefName")
+            ),
             Some(format!(
-                "Update {} from {}",
-                s("headRefName"),
+                "gh pr update-branch {number}, or rebase on {}",
                 s("baseRefName")
             )),
         ));
@@ -160,6 +204,18 @@ pub fn ready(f: &Facts) -> Vec<Item> {
         .filter_map(|x| x["path"].as_str().map(str::to_owned))
         .collect();
     items.extend(conventions(&s("title"), &files, f.merged));
+
+    // GitHub knows rules taro doesn't read: signed commits, deployments, a
+    // merge queue, rulesets on the branch. When it says blocked and nothing
+    // above explains why, the PR isn't ready.
+    if s("mergeStateStatus") == "BLOCKED" && !items.iter().any(|i| i.state == State::Block) {
+        items.push(item(
+            "rules",
+            State::Block,
+            "GitHub says it can't merge yet, for a reason taro doesn't read (a ruleset, signed commits, a deployment, or a merge queue).",
+            Some(format!("gh pr view {number} --web shows what the merge box is waiting for")),
+        ));
+    }
     items
 }
 
@@ -432,6 +488,53 @@ mod tests {
                 .all(|i| i.fix.is_some())
         );
         assert!(items[2].detail.contains("linux (https://ci/1)"));
+    }
+
+    #[test]
+    fn github_saying_blocked_or_behind_blocks() {
+        let p = pr(json!({"mergeStateStatus": "BLOCKED"}));
+        let items = ready(&Facts {
+            pr: &p,
+            required: Some(vec![]),
+            unresolved: Some(0),
+            merged: &[],
+        });
+        let rules = items.iter().find(|i| i.name == "rules").unwrap();
+        assert_eq!(rules.state, State::Block);
+        assert!(rules.fix.as_deref().unwrap().contains("--web"));
+        let p = pr(json!({"mergeStateStatus": "BEHIND"}));
+        let items = ready(&Facts {
+            pr: &p,
+            required: Some(vec![]),
+            unresolved: Some(0),
+            merged: &[],
+        });
+        let behind = items.iter().find(|i| i.name == "behind").unwrap();
+        assert_eq!(behind.state, State::Block);
+        assert!(items.iter().all(|i| i.name != "rules"));
+    }
+
+    #[test]
+    fn reads_required_checks_and_threads_from_graphql() {
+        let answer = json!({"data": {"repository": {"pullRequest": {
+            "reviewThreads": {"nodes": [{"isResolved": true}, {"isResolved": false}]},
+            "commits": {"nodes": [{"commit": {"statusCheckRollup": {"contexts": {"nodes": [
+                {"__typename": "CheckRun", "name": "check (linux)", "isRequired": true},
+                {"__typename": "CheckRun", "name": "docs", "isRequired": false},
+                {"__typename": "StatusContext", "context": "ci/legacy", "isRequired": true}
+            ]}}}}]}
+        }}}});
+        assert_eq!(
+            required_reported(&answer).unwrap(),
+            ["check (linux)", "ci/legacy"]
+        );
+        assert_eq!(unresolved(&answer), Some(1));
+        let none_yet = json!({"data": {"repository": {"pullRequest": {"commits": {"nodes": [{"commit": {"statusCheckRollup": null}}]}}}}});
+        assert_eq!(required_reported(&none_yet), Some(vec![]));
+        // An older GitHub without isRequired: unknown, not "none required".
+        let old = json!({"data": {"repository": {"pullRequest": {"commits": {"nodes": [{"commit": {"statusCheckRollup": {"contexts": {"nodes": [{"name": "x"}]}}}}]}}}}});
+        assert_eq!(required_reported(&old), None);
+        assert_eq!(required_reported(&json!({"errors": []})), None);
     }
 
     #[test]

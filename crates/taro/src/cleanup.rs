@@ -40,6 +40,7 @@ pub fn branches(root: &Path, base: &str, remote: Option<&str>) -> Result<Vec<Bra
     let current = git(root, &["symbolic-ref", "--short", "-q", "HEAD"]).unwrap_or_default();
     let current = current.trim();
     let base_name = base.rsplit('/').next().unwrap_or(base);
+    let worktrees = worktree_branches(root)?;
     let mut out = Vec::new();
     for name in git(
         root,
@@ -48,6 +49,16 @@ pub fn branches(root: &Path, base: &str, remote: Option<&str>) -> Result<Vec<Bra
     .lines()
     {
         if name.is_empty() || name == base_name || name == base || name == current {
+            continue;
+        }
+        // Work may be in progress there, and git won't delete it anyway.
+        if let Some((_, path)) = worktrees.iter().find(|(b, _)| b == name) {
+            out.push(Branch {
+                name: name.to_owned(),
+                remote: None,
+                proof: None,
+                unsafe_because: Some(format!("it's checked out in the worktree at {path}")),
+            });
             continue;
         }
         out.push(judge(root, base, name, None)?);
@@ -66,6 +77,20 @@ pub fn branches(root: &Path, base: &str, remote: Option<&str>) -> Result<Vec<Bra
                 continue;
             }
             out.push(judge(root, base, name, Some(r))?);
+        }
+    }
+    Ok(out)
+}
+
+/// Branches checked out in a worktree, with the worktree's path.
+fn worktree_branches(root: &Path) -> Result<Vec<(String, String)>, String> {
+    let mut out = Vec::new();
+    let mut path = String::new();
+    for line in git(root, &["worktree", "list", "--porcelain"])?.lines() {
+        if let Some(p) = line.strip_prefix("worktree ") {
+            p.clone_into(&mut path);
+        } else if let Some(b) = line.strip_prefix("branch refs/heads/") {
+            out.push((b.to_owned(), path.clone()));
         }
     }
     Ok(out)
@@ -109,7 +134,9 @@ pub fn prove(root: &Path, base: &str, branch: &str) -> Result<Result<Proof, Stri
             }
         }
     }
-    let changed = git(root, &["diff", "--name-only", fork, branch])?;
+    // Without renames, a file the branch moved counts as deleted too, and
+    // must be gone from the base as well.
+    let changed = git(root, &["diff", "--name-only", "--no-renames", fork, branch])?;
     let files: Vec<&str> = changed.lines().filter(|l| !l.is_empty()).collect();
     if !files.is_empty() {
         let mut args = vec!["diff", "--quiet", branch, base, "--"];

@@ -124,7 +124,8 @@ pub fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 /// Runs `gh` and parses its JSON. Auth failures say how to see which login
-/// or token gh is using.
+/// or token gh is using, and name `GH_TOKEN` when it's set, since it
+/// overrides every stored login.
 pub fn gh(args: &[&str]) -> Result<Value, String> {
     let mut cmd = Command::new("gh");
     cmd.args(args);
@@ -139,8 +140,13 @@ pub fn gh(args: &[&str]) -> Result<Value, String> {
             .unwrap_or("gh failed")
             .to_owned();
         if err.contains("401") || err.contains("Bad credentials") || err.contains("gh auth login") {
+            let token = if std::env::var_os("GH_TOKEN").is_some() {
+                " GH_TOKEN is set, and for github.com gh uses it over any stored login: unset it or replace it."
+            } else {
+                ""
+            };
             return Err(format!(
-                "gh can't authenticate ({err}). `yuzu whoami --verify` shows which login or token it's using."
+                "gh can't authenticate ({err}).{token} `yuzu whoami --verify` shows which login or token it's using."
             ));
         }
         return Err(format!("gh {}: {err}", args.first().copied().unwrap_or("")));
@@ -180,9 +186,10 @@ pub fn graphql(repo: &Repo, query: &str, number: u64) -> Result<Value, String> {
         &repo.host,
         "-f",
         &format!("query={query}"),
-        "-F",
+        // -f keeps them strings; -F would make an owner named 123 a number.
+        "-f",
         &format!("owner={}", repo.owner),
-        "-F",
+        "-f",
         &format!("name={}", repo.name),
         "-F",
         &format!("number={number}"),
@@ -201,8 +208,15 @@ pub fn pr_number(repo: &Repo, given: Option<u64>) -> Result<u64, String> {
     let branch = git(root, &["symbolic-ref", "--short", "-q", "HEAD"])
         .map_err(|_| "HEAD is detached: pass a PR number.".to_owned())?;
     let branch = branch.trim();
-    let v = gh(&["pr", "view", branch, "-R", &repo.full(), "--json", "number"])
-        .map_err(|e| format!("No PR found for branch {branch} ({e}). Pass a PR number."))?;
+    let v = gh(&["pr", "view", branch, "-R", &repo.full(), "--json", "number"]).map_err(|e| {
+        if e.contains("can't authenticate") {
+            e
+        } else {
+            format!(
+                "No open PR for branch {branch} ({e}). Push it and open one, or pass a PR number."
+            )
+        }
+    })?;
     v["number"]
         .as_u64()
         .ok_or_else(|| format!("No PR found for branch {branch}. Pass a PR number."))

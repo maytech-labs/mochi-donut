@@ -61,10 +61,12 @@ fn note(events: &mut BTreeMap<(String, String), (String, String)>, check: String
 }
 
 /// `jobs_failed_then_passed` maps a rerun's run id to the job names that
-/// failed in an earlier attempt and passed in the last.
+/// failed in an earlier attempt and passed in the last. An empty list means
+/// no job did (a rerun of a green run), so it isn't a flake.
 pub fn flaky(runs: &[Run], jobs_failed_then_passed: &BTreeMap<u64, Vec<String>>) -> Vec<Flaky> {
     let passed = |c: &str| matches!(c, "success" | "skipped" | "neutral");
-    let failed = |c: &str| matches!(c, "failure" | "timed_out" | "cancelled");
+    // A cancel isn't a failure: someone stopped it, or a newer push did.
+    let failed = |c: &str| matches!(c, "failure" | "timed_out");
     let mut totals: BTreeMap<&str, usize> = BTreeMap::new();
     for r in runs.iter().filter(|r| !r.conclusion.is_empty()) {
         *totals.entry(r.workflow.as_str()).or_insert(0) += 1;
@@ -77,10 +79,11 @@ pub fn flaky(runs: &[Run], jobs_failed_then_passed: &BTreeMap<u64, Vec<String>>)
         .filter(|r| r.attempt > 1 && passed(&r.conclusion))
     {
         match jobs_failed_then_passed.get(&r.id) {
-            Some(jobs) if !jobs.is_empty() => jobs
+            Some(jobs) => jobs
                 .iter()
                 .for_each(|j| note(&mut events, format!("{} / {j}", r.workflow), r)),
-            _ => note(&mut events, r.workflow.clone(), r),
+            // The attempts' jobs weren't read: the rerun itself is the sign.
+            None => note(&mut events, r.workflow.clone(), r),
         }
     }
     // The same workflow failing and passing on one commit.
@@ -153,14 +156,22 @@ mod tests {
             run(3, "CI", "b", "success", 1),
             run(4, "CI", "c", "failure", 1),
             run(5, "Deploy", "c", "success", 1),
+            run(6, "CI", "d", "success", 2),
+            run(7, "CI", "e", "cancelled", 1),
+            run(8, "CI", "e", "success", 1),
         ];
-        let jobs: BTreeMap<u64, Vec<String>> = [(1, vec!["check (macos-15)".to_owned()])].into();
+        let jobs: BTreeMap<u64, Vec<String>> = [
+            (1, vec!["check (macos-15)".to_owned()]),
+            // Rerun after a green run, or after a cancel: no job failed.
+            (6, vec![]),
+        ]
+        .into();
         let f = flaky(&runs, &jobs);
         let got: Vec<(&str, usize, usize)> = f
             .iter()
             .map(|x| (x.check.as_str(), x.flakes, x.runs))
             .collect();
-        assert_eq!(got, [("CI", 1, 4), ("CI / check (macos-15)", 1, 4)]);
+        assert_eq!(got, [("CI", 1, 7), ("CI / check (macos-15)", 1, 7)]);
         // Commit c failed for real: it never passed on CI.
         assert!(f.iter().all(|x| x.example != "https://ci/4"));
     }
