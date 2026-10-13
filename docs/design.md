@@ -3,7 +3,7 @@
 <!-- matcha: links-only -->
 <!-- It's a proposal, and its examples quote other repos, so `matcha drift` checks only its links. -->
 
-- **Status:** Accepted. Every `matcha` command, `yuzu` status, and `yuzu check` are built; each command's section says how far.
+- **Status:** Accepted. Every command is built; each command's section says how far.
 - **Date:** 2026-10-12
 - **Tools:** `matcha` (what the repo knows) and `yuzu` (what the user's environment is)
 
@@ -298,6 +298,8 @@ $ yuzu probe https://openbao.local/ui/
 
 **Done when.** Replaying today's OpenBao session, `yuzu probe` names the Local Network permission on the first failure, without a round trip to the user.
 
+**Status (2026-10-12): built; the bar is met on the session's facts.** curl and headless Chrome (or Edge, Brave, Chromium) with an empty temporary profile, the system resolver, and the proxy settings, mapped to causes by six exact rules. The OpenBao session's facts give exactly the Local Network permission, with Chrome's update named. Chrome has the permission on this Mac today, so the failure couldn't be reproduced live. It reads the error from headless Chrome's output instead of the DevTools Protocol, and uses an empty profile instead of a copy. See [ADR 0018](decisions/0018-yuzu-probe.md).
+
 ## How agents find the tools
 
 An agent reliably uses a tool it has only been told about some of the time. So discovery is layered from strongest to weakest, and **anything safety depends on sits in the first layer.**
@@ -349,5 +351,5 @@ After each phase, decide from the results whether to continue, change course, or
 
 ## Open questions
 
-1. **`yuzu probe` scope.** Chrome only at first, or Chrome and Safari from the start?
+1. ~~**`yuzu probe` scope.** Chrome only at first, or Chrome and Safari from the start?~~ Chromium-based browsers only; Safari has no headless mode ([ADR 0018](decisions/0018-yuzu-probe.md)).
 2. **Sharing the environment declarations.** Should yuzu's file be per user only, or can a repo ship its own declarations (for example, "this repo deploys to the production host")?
