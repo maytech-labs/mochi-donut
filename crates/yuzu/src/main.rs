@@ -114,7 +114,7 @@ enum Command {
         #[arg(long = "dir", value_name = "PATH")]
         dirs: Vec<String>,
     },
-    /// Serve status, check, and probe as MCP tools on stdin and stdout.
+    /// Serve status, check, probe, whoami, and wait as MCP tools on stdin and stdout.
     Mcp,
     /// Print a short guide to yuzu, written for AI agents.
     AgentGuide,

@@ -2,7 +2,7 @@
 
 Tools that help AI coding agents work in a repo the way a careful teammate would: with evidence about how things are done here, and without touching the wrong environment.
 
-> **Status: pre-release.** Every command works: `matcha census`, `recipe`, `drift`, `ledger`, and `eval`, and `yuzu` status, `check`, `probe`, `whoami`, `wait`, and `sessions`; the rest of the commands parse and say they aren't built yet. See the [design](docs/design.md) and the [roadmap](#roadmap).
+> **Status: pre-release.** Every command in the table below is built and tested. Nothing is published yet; see the [roadmap](#roadmap) and the [design](docs/design.md).
 
 Agents start every session with no memory. They guess the house style, forget the companion edits a change needs, trust docs that have drifted, and run commands against whatever cluster or account the shell happens to point at. mochi-donut answers those questions from the repo's own history and from a declaration of your environments, in a form agents can act on.
 
@@ -59,21 +59,25 @@ class = "mine"                    # mine, work, or production
 kube_contexts = ["k3s-pis"]       # patterns: * and ?
 ssh_hosts = ["pi-1", "pi-2"]
 git_remotes = ["github.com/me/*"]
+aws_profiles = ["personal"]
+infra_dirs = ["~/homelab/infra/*"] # where terraform, tofu, or pulumi run
+cli_tools = ["flyctl"]            # cloud CLIs whose account is yours
 
 [[env]]
 name = "work"
 class = "work"                    # agents can read; writes ask you first
 kube_contexts = ["*-nonprod-*"]
+# agents = "none"                 # or forbid agents entirely
 ```
 
-Run `yuzu` to see where your shell points, and `yuzu check -- '<command>'` to see what a command would touch. To check every command Claude Code runs, add the hook in [ADR 0014](docs/decisions/0014-claude-code-hook.md) to `~/.claude/settings.json`.
+Run `yuzu` to see where your shell points, `yuzu check -- '<command>'` to see what a command would touch, and `yuzu whoami` to see which accounts gh, git, ssh, and AWS will act as. To check every command Claude Code runs, install the hooks plugin (below) or add the hook in [ADR 0014](docs/decisions/0014-claude-code-hook.md) to your settings.
 
 ## Use with agents
 
 In Claude Code, this repo is a plugin marketplace with two plugins:
 
 ```sh
-/plugin marketplace add trammel-may/mochi-donut
+/plugin marketplace add trammel-may/mochi-donut   # or the path to a clone
 /plugin install mochi-donut@mochi-donut         # MCP servers and skills for both tools
 /plugin install mochi-donut-hooks@mochi-donut   # yuzu checks every Bash command; matcha records evidence
 ```
@@ -91,12 +95,25 @@ Before trusting a doc                             matcha drift
 When you check or assume a fact                   matcha ledger add verified|assumed "<claim>"
 Before committing                                 matcha recipe --check; matcha ledger check --diff
 When it works for you but not the user            yuzu probe <url>
+Before pushing, or when auth fails                yuzu whoami
+Instead of sleep or a poll loop                   yuzu wait ci|port|url|file|cmd ...
 ```
+
+## What stays on your machine
+
+Nothing leaves it: no telemetry, and the only network calls are the ones a command is for: `yuzu probe`, `yuzu whoami --verify`, `yuzu wait` (CI, a port, a URL), and `matcha eval` when a spec names a repo by URL. The tools write only these files, all local:
+
+| File | Written by | Holds |
+|---|---|---|
+| `.matcha/` in a repo | `matcha ledger` and its hook | Claims, and excerpts of command output with secret-looking values redacted. It ignores itself, so it's never committed. |
+| `~/.local/state/yuzu/decisions.jsonl` | yuzu's hook | Each command it asked about or denied, for review. `YUZU_NO_LOG=1` turns it off. |
+
+`yuzu sessions` reads Claude Code's own transcripts in `~/.claude*/projects`, and writes nothing.
 
 ## Roadmap
 
 1. `matcha census` and `matcha recipe` (built; `recipe` clears its 90% precision bar on Ghostty and vim but not on Anchor, see [ADR 0012](docs/decisions/0012-recipe-support-six.md))
-2. `yuzu status` and `yuzu check`, run as a pre-command hook (built; on a two-week trial, see [ADR 0014](docs/decisions/0014-claude-code-hook.md))
+2. `yuzu status` and `yuzu check`, run as a pre-command hook (built; the two-week trial starts when the hook is installed, and `yuzu sessions` measures it, see ADRs [0014](docs/decisions/0014-claude-code-hook.md) and [0025](docs/decisions/0025-yuzu-sessions.md))
 3. `matcha drift` (mechanical claims built and meets its bar on Anchor, and check comments built, see ADRs [0015](docs/decisions/0015-drift-mechanical-claims.md) and [0016](docs/decisions/0016-drift-check-comments.md)) and `matcha ledger` (built, see [ADR 0017](docs/decisions/0017-ledger.md))
 4. `yuzu probe` (built, see [ADR 0018](docs/decisions/0018-yuzu-probe.md))
 5. MCP servers and a Claude Code plugin with skills and hooks (built, see [ADR 0019](docs/decisions/0019-mcp-and-plugin.md))
@@ -106,7 +123,7 @@ Nothing is announced or published to crates.io until the first two steps prove u
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). AI agents working in this repo start with [AGENTS.md](AGENTS.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). AI agents working in this repo start with [AGENTS.md](AGENTS.md), which also says how tests are split: unit tests drive the code, integration tests pin what users rely on. Labeled answers for matcha's heuristics live in [evals/](evals/README.md).
 
 ## License
 
