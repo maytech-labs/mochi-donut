@@ -20,8 +20,12 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `yuzu hook claude-code`: `check` as a Claude Code `PreToolUse` hook.
 - `matcha mcp` and `yuzu mcp`: each tool's commands as MCP tools over stdio, with descriptions written as triggers.
 - A Claude Code plugin marketplace in this repo: `mochi-donut` (MCP servers and skills) and `mochi-donut-hooks` (yuzu's check and matcha's recorder).
-- Design doc and ADRs 0001–0021.
+- Design doc and ADRs 0001–0025.
 - `make install` (default `/usr/local/bin`) and a Homebrew formula (`brew install --HEAD mochi-donut` from this repo's tap).
+- `yuzu whoami`: which account gh, git, ssh, and AWS act as here, and what overrides it; `--verify` asks each service.
+- `yuzu wait`: wait for CI (GitHub), a port, a URL, a file, or a command, with a timeout and a clear exit code.
+- `matcha eval`: score any command's JSON answers against labeled ones in a spec, pinned to a commit; `evals/` holds this repo's cases.
+- `yuzu sessions`: how agents used given tools, from Claude Code transcripts, including unprompted use; the hook now logs its asks and denies for review.
 
 ### Changed
 

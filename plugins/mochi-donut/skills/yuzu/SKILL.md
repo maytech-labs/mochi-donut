@@ -1,6 +1,6 @@
 ---
 name: yuzu
-description: Use before running commands against Kubernetes clusters, cloud accounts, remote hosts, or git remotes (which one is the shell pointed at, and is it the user's?), and when something works from your shell but the user says it doesn't load for them (probe the browser's side before asking them to debug).
+description: Use before running commands against Kubernetes clusters, cloud accounts, remote hosts, or git remotes (which one is the shell pointed at, and is it the user's?), before pushing or when auth fails (which account will this act as?), when waiting on CI or a deploy, and when something works from your shell but the user says it doesn't load for them.
 ---
 
 # yuzu: what the user's environment is
@@ -14,6 +14,8 @@ yuzu knows which clusters, accounts, hosts, and remotes are the user's, which ar
 | Before acting on a cluster, account, or host | `status` | The current kube context, AWS profile, and git remotes, and whose each is |
 | Before a command that might change one | `check` with the command line | What it touches, and whether it's allowed, needs approval, or is denied |
 | It works from your shell but not for the user | `probe` with the URL | curl's result and the browser's side by side, and the likely cause with a fix |
+| Before pushing, opening a PR, or calling a cloud API, and when auth fails | `whoami` (`verify: true` to ask each service) | Which account gh, git, ssh, and AWS act as, and what overrides it, like a `GH_TOKEN` hiding your login |
+| Waiting on CI, a deploy, a port, or a file | `wait` | Returns when it's done, failed, or timed out. Use it instead of `sleep` or a poll loop. |
 
 ## Rules
 

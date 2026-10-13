@@ -320,6 +320,17 @@ An agent reliably uses a tool it has only been told about some of the time. So d
 
 **Status (2026-10-12): built.** `matcha mcp` and `yuzu mcp` serve each tool's commands over stdio, as a thin layer that reruns the CLI with `--json`; their descriptions are triggers. This repo is a Claude Code plugin marketplace: `mochi-donut` carries the MCP servers and a skill per tool, and `mochi-donut-hooks` carries yuzu's check and matcha's recorder, as a separate install because it changes how commands are approved. The README has the trigger table. See [ADR 0019](decisions/0019-mcp-and-plugin.md).
 
+## Added after the design
+
+Using the tools in real sessions showed four gaps the design didn't plan for. Each is built and has its own ADR.
+
+| Command | Question it answers | Why |
+|---|---|---|
+| `yuzu whoami` | Which account will this act as? | A stale `GH_TOKEN` silently overrode a working `gh` login and blocked a PR twice ([ADR 0022](decisions/0022-yuzu-whoami.md)) |
+| `yuzu wait` | Is it done yet? | Waiting for CI took four tries with `gh`'s watchers and hand-written loops ([ADR 0023](decisions/0023-yuzu-wait.md)) |
+| `matcha eval` | Are the answers still right? | Heuristics were tuned by judging findings by hand; now the judgments are labels and the result is a number ([ADR 0024](decisions/0024-matcha-eval.md)) |
+| `yuzu sessions` | How do agents use these tools? | ADR 0004's trial needs unprompted-use counts and every hook ask or deny to review ([ADR 0025](decisions/0025-yuzu-sessions.md)) |
+
 ## Rollout
 
 | Phase | Build | Prove it on |

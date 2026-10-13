@@ -1,6 +1,6 @@
 # 0014. yuzu runs as a Claude Code hook that's silent when it allows
 
-- **Status:** Accepted
+- **Status:** Accepted, amended by [0025](0025-yuzu-sessions.md)
 - **Date:** 2026-10-12
 
 ## Context

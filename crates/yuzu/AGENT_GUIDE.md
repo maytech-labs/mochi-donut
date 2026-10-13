@@ -6,6 +6,15 @@ When to run what
   Every Bash command, automatically                    yuzu hook claude-code      a Claude Code PreToolUse hook
   When it works from your shell but the user says it doesn't  yuzu probe <url>
                                                        curl and the user's browser side by side, and the likely cause
+  Before pushing, opening a PR, or calling a cloud API; when auth fails
+    yuzu whoami                which account gh, git, ssh, aws act as here, and what overrides it
+    yuzu whoami --verify       ask each service (network); exit 1 if one fails, with the fix
+  Instead of sleep or a poll loop
+    yuzu wait ci [<pr|ref>]    until CI finishes: exit 0 passed, 1 failed (with links) or timed out
+    yuzu wait port|url|file <target>, yuzu wait cmd -- '<command>'
+                               --timeout 10m (default), --every 30s, --not
+  To see how agents use a tool, and what the hook blocked
+    yuzu sessions [--tool <name>] [--since 14d] [--exclude <repo>]
 
 What check looks at
   kubectl, helm      the kube context: --context, else current-context in $KUBECONFIG or ~/.kube/config

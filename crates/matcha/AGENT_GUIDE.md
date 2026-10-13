@@ -13,6 +13,8 @@ When to run what
     matcha recipe --replay 50                                its precision on this repo's history
   Before trusting a doc, and after changing code a doc describes
     matcha drift --in docs/                                  exit 1 if a link, path, or name in the docs is gone
+  After changing a heuristic, to see if answers got better or worse
+    matcha eval evals/*.json                                 precision and recall against labeled answers
   When writing a rule into a doc ("never X", "always Y")
     matcha drift --suggest                                   a check comment to put above it, with evidence
   When you check a fact, or have to assume one
