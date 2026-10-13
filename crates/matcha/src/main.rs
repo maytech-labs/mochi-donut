@@ -8,6 +8,7 @@ mod files;
 mod hook;
 mod ledger;
 mod markdown;
+mod mcp_tools;
 mod recipe;
 mod rules;
 
@@ -48,6 +49,8 @@ enum Command {
     Drift(DriftArgs),
     /// Record and check what was verified and what was assumed.
     Ledger(LedgerArgs),
+    /// Serve matcha's commands as MCP tools on stdin and stdout.
+    Mcp,
     /// Run as an agent hook: read the hook's JSON on stdin.
     Hook {
         #[arg(value_enum)]
@@ -195,6 +198,10 @@ fn main() -> ExitCode {
         print!("{AGENT_GUIDE}");
         return ExitCode::from(exit::OK);
     }
+    if let Command::Mcp = cli.command {
+        // Each tool call finds its own repo, from `repo` or the working dir.
+        return ExitCode::from(mcp_tools::serve());
+    }
     if let Command::Hook {
         agent: HookAgent::ClaudeCode,
     } = cli.command
@@ -219,7 +226,7 @@ fn main() -> ExitCode {
         Command::Recipe(args) => run_recipe(&root, args, format),
         Command::Drift(args) => run_drift(&root, args, format),
         Command::Ledger(args) => run_ledger(&root, args, format),
-        Command::AgentGuide | Command::Hook { .. } => Ok(exit::OK),
+        Command::AgentGuide | Command::Hook { .. } | Command::Mcp => Ok(exit::OK),
     };
     match result {
         Ok(code) => ExitCode::from(code),

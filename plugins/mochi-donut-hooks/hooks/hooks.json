@@ -1,0 +1,29 @@
+{
+  "description": "yuzu checks each Bash command before it runs (asking if yuzu is missing or fails); matcha records each command and its output for ledger evidence.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "yuzu hook claude-code || printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"yuzu failed or is missing, so this command was not checked.\"}}'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "matcha hook claude-code",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

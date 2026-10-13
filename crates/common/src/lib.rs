@@ -1,6 +1,8 @@
 //! Conventions every mochi-donut tool shares: output format, exit codes, and
 //! the shape of `--json` output (docs/design.md, "Shared conventions").
 
+pub mod mcp;
+
 use std::io::{self, Write};
 
 use serde::Serialize;

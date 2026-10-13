@@ -1,0 +1,11 @@
+{
+  "name": "mochi-donut-hooks",
+  "version": "0.0.0",
+  "description": "Hooks: yuzu checks every Bash command before it runs, and matcha records commands and output as ledger evidence. Changes how commands are approved; install it on purpose.",
+  "author": {
+    "name": "Trammel May"
+  },
+  "homepage": "https://github.com/trammel-may/mochi-donut",
+  "repository": "https://github.com/trammel-may/mochi-donut",
+  "license": "MIT"
+}

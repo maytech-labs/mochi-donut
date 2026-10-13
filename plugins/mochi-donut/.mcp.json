@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "matcha": {
+      "command": "matcha",
+      "args": ["mcp"]
+    },
+    "yuzu": {
+      "command": "yuzu",
+      "args": ["mcp"]
+    }
+  }
+}

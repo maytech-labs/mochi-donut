@@ -1,0 +1,21 @@
+{
+  "name": "mochi-donut",
+  "owner": {
+    "name": "Trammel May"
+  },
+  "metadata": {
+    "description": "matcha and yuzu for Claude Code: what a repo knows and what your environment is, with evidence."
+  },
+  "plugins": [
+    {
+      "name": "mochi-donut",
+      "source": "./plugins/mochi-donut",
+      "description": "MCP servers and skills for matcha (census, recipe, drift, ledger) and yuzu (status, check, probe). Needs both binaries on PATH."
+    },
+    {
+      "name": "mochi-donut-hooks",
+      "source": "./plugins/mochi-donut-hooks",
+      "description": "Hooks: yuzu checks every Bash command before it runs, and matcha records commands and output as ledger evidence. Changes how commands are approved; install it on purpose."
+    }
+  ]
+}

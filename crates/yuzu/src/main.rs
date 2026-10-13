@@ -4,6 +4,7 @@
 
 mod config;
 mod env;
+mod mcp_tools;
 mod policy;
 mod probe;
 mod shell;
@@ -67,6 +68,8 @@ enum Command {
         #[arg(long, default_value_t = 15, value_name = "SECS")]
         timeout: u64,
     },
+    /// Serve status, check, and probe as MCP tools on stdin and stdout.
+    Mcp,
     /// Print a short guide to yuzu, written for AI agents.
     AgentGuide,
 }
@@ -88,6 +91,7 @@ fn main() -> ExitCode {
             exit::OK
         }
         Command::Status => run_status(&ctx, format),
+        Command::Mcp => mcp_tools::serve(),
         Command::Check { command } => run_check(&ctx, &command, format),
         Command::Hook {
             agent: HookAgent::ClaudeCode,

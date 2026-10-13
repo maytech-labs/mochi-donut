@@ -18,7 +18,9 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `yuzu check`: what a command would touch through `kubectl`, `helm`, `ssh`, `scp`, `rsync`, `git push`, and `aws`, and whether it needs the user's approval.
 - `yuzu probe <url>`: load a URL from the terminal (curl) and from the user's browser (headless Chrome, Edge, Brave, or Chromium, with an empty temporary profile), and name the likely cause when they differ, such as macOS's Local Network permission.
 - `yuzu hook claude-code`: `check` as a Claude Code `PreToolUse` hook.
-- Design doc and ADRs 0001–0018.
+- `matcha mcp` and `yuzu mcp`: each tool's commands as MCP tools over stdio, with descriptions written as triggers.
+- A Claude Code plugin marketplace in this repo: `mochi-donut` (MCP servers and skills) and `mochi-donut-hooks` (yuzu's check and matcha's recorder).
+- Design doc and ADRs 0001–0019.
 - `make install` (default `/usr/local/bin`) and a Homebrew formula (`brew install --HEAD mochi-donut` from this repo's tap).
 
 ### Changed

@@ -259,3 +259,34 @@ fn the_hook_ignores_other_tools_and_asks_on_bad_input() {
     assert_eq!(hook(h.path(), read), "");
     assert!(hook(h.path(), "not json").contains("\"permissionDecision\":\"ask\""));
 }
+
+#[test]
+fn mcp_serves_check_as_a_tool() {
+    let h = home(Some(ENVIRONMENTS));
+    let input = [
+        serde_json::json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}),
+        serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"check","arguments":{"command":"kubectl delete ns payments"}}}),
+    ]
+    .iter()
+    .map(|m| format!("{m}\n"))
+    .collect::<String>();
+    let out = yuzu(h.path())
+        .arg("mcp")
+        .write_stdin(input)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let replies: Vec<Value> = String::from_utf8(out)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(replies[0]["result"]["serverInfo"]["name"], "yuzu");
+    let body: Value =
+        serde_json::from_str(replies[1]["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    // The work context needs approval for a write; that's an answer, not an error.
+    assert_eq!(replies[1]["result"]["isError"], false);
+    assert_eq!(body["decision"], "ask", "{body}");
+}

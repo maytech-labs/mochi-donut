@@ -1,0 +1,12 @@
+{
+  "name": "mochi-donut",
+  "version": "0.0.0",
+  "description": "MCP servers and skills for matcha (census, recipe, drift, ledger) and yuzu (status, check, probe). Needs both binaries on PATH.",
+  "author": {
+    "name": "Trammel May"
+  },
+  "homepage": "https://github.com/trammel-may/mochi-donut",
+  "repository": "https://github.com/trammel-may/mochi-donut",
+  "license": "MIT",
+  "keywords": ["conventions", "docs", "kubernetes", "safety", "evidence"]
+}
