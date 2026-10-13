@@ -528,3 +528,102 @@ fn mcp_serves_whoami_and_wait() {
     assert!(text(0)["identities"].is_array());
     assert_eq!(text(1)["met"], true);
 }
+
+/// A curl stand-in that prints probe's `-w` line for `ip`, and fails over
+/// IPv6 when `v6_fails`.
+fn stub_curl(w: &World, ip: &str, v6_fails: bool) {
+    let v6 = if v6_fails {
+        "for a in \"$@\"; do [ \"$a\" = -6 ] && { echo 'curl: (7) Failed to connect to ::1 port 1' >&2; exit 7; }; done\n"
+    } else {
+        ""
+    };
+    w.stub("curl", &format!("{v6}printf '200\\t{ip}\\t0'"));
+}
+
+fn stub_browser_error(w: &World, code: Option<&str>) -> PathBuf {
+    let load = match code {
+        Some(c) => format!("echo 'Page load failed: net::{c}' >&2"),
+        None => "echo '<html>ok</html>'".to_owned(),
+    };
+    w.stub(
+        "browser",
+        &format!("[ \"$1\" = --version ] && {{ echo 'Stub 1.0'; exit 0; }}\n{load}"),
+    );
+    w.path("bin/browser")
+}
+
+#[test]
+fn probe_names_local_network_permission_on_macos() {
+    let w = World::new(ENVS);
+    stub_curl(&w, "10.0.0.8", false);
+    let browser = stub_browser_error(&w, Some("ERR_ADDRESS_UNREACHABLE"));
+    let assert = w
+        .yuzu(w.home.path())
+        .args(["probe", "--timeout", "5", "--browser"])
+        .arg(&browser)
+        .arg("http://10.0.0.8:8200/ui/")
+        .assert()
+        .code(1);
+    if cfg!(target_os = "macos") {
+        // The stub was just written, so it counts as a fresh update.
+        assert
+            .stdout(predicate::str::contains(
+                "likely cause: macOS Local Network permission for browser",
+            ))
+            .stdout(predicate::str::contains("updated to 1.0 at"))
+            .stdout(predicate::str::contains(
+                "Privacy & Security > Local Network",
+            ));
+    } else {
+        assert.stdout(predicate::str::contains("No rule matches this combination"));
+    }
+}
+
+#[test]
+fn probe_names_a_browser_that_resolves_differently() {
+    let w = World::new(ENVS);
+    stub_curl(&w, "127.0.0.1", false);
+    let browser = stub_browser_error(&w, Some("ERR_NAME_NOT_RESOLVED"));
+    w.yuzu(w.home.path())
+        .args(["probe", "--timeout", "5", "--browser"])
+        .arg(&browser)
+        .arg("http://localhost:1/")
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains(
+            "resolves localhost differently from the system",
+        ))
+        .stdout(predicate::str::contains("Secure DNS"));
+}
+
+#[test]
+fn probe_names_a_dead_ipv6_address() {
+    let w = World::new(ENVS);
+    stub_curl(&w, "127.0.0.1", true);
+    let browser = stub_browser_error(&w, None);
+    let out = w
+        .yuzu(w.home.path())
+        .args(["probe", "--json", "--timeout", "5", "--browser"])
+        .arg(&browser)
+        .arg("http://localhost:1/")
+        .output()
+        .unwrap();
+    let body = json_of(&out.stdout);
+    // Only meaningful where localhost has both addresses, as on macOS and
+    // most Linux images.
+    if body["dns"]["v6"].as_array().is_some_and(|v| !v.is_empty())
+        && body["dns"]["v4"].as_array().is_some_and(|v| !v.is_empty())
+    {
+        assert_eq!(body["terminal_ipv6"]["ok"], false, "{body}");
+        let causes: Vec<&str> = body["diagnosis"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|d| d["cause"].as_str().unwrap())
+            .collect();
+        assert!(
+            causes.contains(&"localhost's IPv6 address doesn't answer"),
+            "{body}"
+        );
+    }
+}
