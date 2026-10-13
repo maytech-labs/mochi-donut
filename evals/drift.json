@@ -1,0 +1,112 @@
+{
+  "cases": [
+    {
+      "name": "drift: anchor before the guidelines PR",
+      "repo": "~/projects/software/personal/anchor",
+      "rev": "2b0a01c",
+      "run": [
+        "matcha",
+        "drift",
+        "--json"
+      ],
+      "findings": "/failing",
+      "key": "{doc}:{line} {claim}",
+      "min_precision": 0.85,
+      "min_recall": 1.0,
+      "real": [
+        "docs/architecture/backend.md:74 renewal_reminders",
+        "docs/architecture/backend.md:75 expire_terms",
+        "docs/architecture/backend.md:76 expire_certificates",
+        "docs/architecture/backend.md:77 auto_reissue",
+        "docs/architecture/data-model.md:95 bank_transaction",
+        "docs/architecture/data-model.md:95 fit_id",
+        "docs/architecture/data-model.md:97 bill_line",
+        "docs/architecture/frontend.md:57 Suspense",
+        "docs/architecture/overview.md:95 acord::render_25(data)",
+        "docs/engineering/conventions.md:13 ClientId(Uuid)"
+      ],
+      "false": [
+        "docs/open-questions.md:34 allowed_emails"
+      ]
+    },
+    {
+      "name": "drift: anchor with guidelines",
+      "repo": "~/projects/software/personal/anchor",
+      "rev": "8e6adbb",
+      "run": [
+        "matcha",
+        "drift",
+        "--json"
+      ],
+      "findings": "/failing",
+      "key": "{doc}:{line} {claim}",
+      "min_precision": 0.85,
+      "min_recall": 1.0,
+      "real": [
+        "docs/architecture/backend.md:74 renewal_reminders",
+        "docs/architecture/backend.md:75 expire_terms",
+        "docs/architecture/backend.md:76 expire_certificates",
+        "docs/architecture/backend.md:77 auto_reissue",
+        "docs/architecture/data-model.md:95 bank_transaction",
+        "docs/architecture/data-model.md:95 fit_id",
+        "docs/architecture/data-model.md:97 bill_line",
+        "docs/architecture/frontend.md:57 Suspense",
+        "docs/architecture/overview.md:95 acord::render_25(data)",
+        "docs/guidelines/coding/naming.md:75 lib/dates.ts"
+      ],
+      "false": [
+        "docs/open-questions.md:34 allowed_emails"
+      ]
+    },
+    {
+      "name": "drift: ghostty has no drift",
+      "repo": "~/projects/software/personal/ghostty",
+      "rev": "7ba9f9a21",
+      "run": [
+        "matcha",
+        "drift",
+        "--json"
+      ],
+      "expect": {
+        "/failing": []
+      }
+    },
+    {
+      "name": "drift: ghidra",
+      "repo": "~/projects/software/personal/ghidra",
+      "rev": "6560dbcf56",
+      "run": [
+        "matcha",
+        "drift",
+        "--json"
+      ],
+      "findings": "/failing",
+      "key": "{doc}:{line} {claim}",
+      "min_precision": 0.35,
+      "min_recall": 1.0,
+      "real": [
+        "DevGuide.md:430 DebuggerDevGuide.md",
+        "Ghidra/RuntimeScripts/Common/support/analyzeHeadlessREADME.md:342 getHeadlessAnalysisTimeoutStatus()",
+        "Ghidra/RuntimeScripts/Common/support/analyzeHeadlessREADME.md:894 setHeadlessContinationOption()",
+        "GhidraBuild/EclipsePlugins/GhidraDev/GhidraDevPlugin/README.md:322 #manual-installation-in-eclipse",
+        "GhidraBuild/EclipsePlugins/GhidraDev/GhidraDevPlugin/README.md:331 #manual-installation-in-eclipse",
+        "GhidraDocs/GhidraClass/Debugger/B4-Modeling.md:390 ../../../Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/pcode/opbehavior/OpBehaviorFactory.java",
+        "GhidraDocs/GhidraClass/Debugger/B5-AddingDebuggers.md:219 ../../../Ghidra/Debug/Debugger-rmi-trace/src/main/help/help/topics/TraceRmiConnectionManagerPlugin/TraceRmiLauncherServicePlugin.html"
+      ],
+      "false": [
+        "Ghidra/RuntimeScripts/Common/server/svrREADME.md:122 ClientCount",
+        "Ghidra/RuntimeScripts/Common/server/svrREADME.md:122 FileCount",
+        "Ghidra/RuntimeScripts/Common/support/analyzeHeadlessREADME.md:465 Project1",
+        "Ghidra/RuntimeScripts/Common/support/analyzeHeadlessREADME.md:472 Project1",
+        "Ghidra/RuntimeScripts/Common/support/analyzeHeadlessREADME.md:506 Project1",
+        "Ghidra/RuntimeScripts/Common/support/analyzeHeadlessREADME.md:513 Project2",
+        "Ghidra/RuntimeScripts/Common/support/analyzeHeadlessREADME.md:520 Project1",
+        "GhidraDocs/GhidraClass/BSim/BSimTutorial_BSim_Command_Line.md:17 postgres_object_files",
+        "GhidraDocs/GhidraClass/BSim/BSimTutorial_Basic_Queries.md:139 _expandargv",
+        "GhidraDocs/GhidraClass/BSim/BSimTutorial_Evaluating_Matches.md:21 grouping_planner",
+        "GhidraDocs/GhidraClass/BSim/BSimTutorial_Ghidra_Command_Line.md:46 postgres_object_files",
+        "README.md:89 Extensions/Eclipse/GhidraDev/"
+      ]
+    }
+  ]
+}

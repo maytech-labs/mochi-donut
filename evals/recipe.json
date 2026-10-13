@@ -1,0 +1,11 @@
+{
+  "cases": [
+    {
+      "name": "recipe: \"migration\" finds commits by their paths",
+      "repo": "~/projects/software/personal/anchor",
+      "rev": "8e6adbb",
+      "run": ["matcha", "recipe", "--like", "migration", "--json"],
+      "expect": { "/similar/0/hash": "8e6adbb" }
+    }
+  ]
+}

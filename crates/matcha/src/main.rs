@@ -4,6 +4,7 @@
 
 mod census;
 mod drift;
+mod eval;
 mod files;
 mod hook;
 mod ledger;
@@ -49,6 +50,8 @@ enum Command {
     Drift(DriftArgs),
     /// Record and check what was verified and what was assumed.
     Ledger(LedgerArgs),
+    /// Score a command's answers against labeled ones, from a spec file.
+    Eval(EvalArgs),
     /// Serve matcha's commands as MCP tools on stdin and stdout.
     Mcp,
     /// Run as an agent hook: read the hook's JSON on stdin.
@@ -79,6 +82,19 @@ struct CensusArgs {
     /// Leave out test files (tests/, *.test.ts, *_test.go, ...).
     #[arg(long)]
     no_tests: bool,
+}
+
+#[derive(Debug, Args)]
+struct EvalArgs {
+    /// Spec files: JSON with a `cases` list (see `matcha agent-guide`).
+    #[arg(required = true, value_name = "SPEC")]
+    specs: Vec<PathBuf>,
+    /// Only run cases whose name contains this.
+    #[arg(long, value_name = "TEXT")]
+    case: Option<String>,
+    /// Write findings nobody has labeled into each case's `unlabeled` list.
+    #[arg(long)]
+    record: bool,
 }
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
@@ -201,6 +217,10 @@ fn main() -> ExitCode {
         print!("{AGENT_GUIDE}");
         return ExitCode::from(exit::OK);
     }
+    if let Command::Eval(args) = cli.command {
+        // Each case names its own repo.
+        return ExitCode::from(run_eval(args, format));
+    }
     if let Command::Mcp = cli.command {
         // Each tool call finds its own repo, from `repo` or the working dir.
         return ExitCode::from(mcp_tools::serve());
@@ -229,7 +249,9 @@ fn main() -> ExitCode {
         Command::Recipe(args) => run_recipe(&root, args, format),
         Command::Drift(args) => run_drift(&root, args, format),
         Command::Ledger(args) => run_ledger(&root, args, format),
-        Command::AgentGuide | Command::Hook { .. } | Command::Mcp => Ok(exit::OK),
+        Command::AgentGuide | Command::Hook { .. } | Command::Mcp | Command::Eval(_) => {
+            Ok(exit::OK)
+        }
     };
     match result {
         Ok(code) => ExitCode::from(code),
@@ -583,6 +605,110 @@ fn run_drift(root: &RepoRoot, args: DriftArgs, format: Format) -> Result<u8, Str
     } else {
         exit::CHECK_FAILED
     })
+}
+
+fn run_eval(args: EvalArgs, format: Format) -> u8 {
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    let mut results = Vec::new();
+    for path in &args.specs {
+        let mut spec = match eval::load(path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("{e}");
+                return exit::USAGE;
+            }
+        };
+        let dir = path.parent().unwrap_or(std::path::Path::new("."));
+        let mut changed = false;
+        for case in &mut spec.cases {
+            if args
+                .case
+                .as_ref()
+                .is_some_and(|c| !case.name.contains(c.as_str()))
+            {
+                continue;
+            }
+            let r = eval::run_case(case, dir, &home);
+            if args.record && r.unlabeled != case.unlabeled {
+                case.unlabeled.clone_from(&r.unlabeled);
+                changed = true;
+            }
+            results.push(r);
+        }
+        if changed && let Err(e) = eval::save(path, &spec) {
+            eprintln!("{e}");
+            return exit::USAGE;
+        }
+    }
+    let pct = |v: Option<f64>| v.map_or("n/a".to_owned(), |p| format!("{:.0}%", p * 100.0));
+    match format {
+        Format::Json => print_json(&serde_json::json!({ "cases": results })),
+        Format::Text => {
+            for r in &results {
+                let mark = if r.ok { "ok  " } else { "FAIL" };
+                if let Some(e) = &r.error {
+                    println!("{mark} {}: couldn't run: {e}", r.name);
+                    continue;
+                }
+                if !r.scored {
+                    println!(
+                        "{mark} {}: {} of {} expected values match",
+                        r.name,
+                        r.expected - r.mismatches.len(),
+                        r.expected
+                    );
+                    for m in &r.mismatches {
+                        println!(
+                            "       {}: expected {}, got {}",
+                            m.pointer, m.expected, m.got
+                        );
+                    }
+                    continue;
+                }
+                println!(
+                    "{mark} {}: {} flagged; precision {} ({} real, {} false), recall {}{}",
+                    r.name,
+                    r.flagged,
+                    pct(r.precision),
+                    r.real_found.len(),
+                    r.false_found.len(),
+                    pct(r.recall),
+                    if r.unlabeled.is_empty() {
+                        String::new()
+                    } else {
+                        format!(", {} unlabeled", r.unlabeled.len())
+                    }
+                );
+                for f in &r.failures {
+                    println!("       {f}");
+                }
+                for m in &r.missed {
+                    println!("       missed: {m}");
+                }
+                for m in &r.mismatches {
+                    println!(
+                        "       {}: expected {}, got {}",
+                        m.pointer, m.expected, m.got
+                    );
+                }
+                for u in r.unlabeled.iter().take(10) {
+                    println!("       unlabeled: {u}");
+                }
+            }
+            if results.iter().any(|r| !r.unlabeled.is_empty()) && !args.record {
+                println!(
+                    "Label new findings as real or false in the spec; --record lists them there for you."
+                );
+            }
+        }
+    }
+    if results.iter().all(|r| r.ok) {
+        exit::OK
+    } else {
+        exit::CHECK_FAILED
+    }
 }
 
 fn run_ledger(root: &RepoRoot, args: LedgerArgs, format: Format) -> Result<u8, String> {

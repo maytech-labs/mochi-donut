@@ -1,0 +1,32 @@
+{
+  "cases": [
+    {
+      "name": "census: anchor's production Rust never unwraps",
+      "repo": "~/projects/software/personal/anchor",
+      "rev": "8e6adbb",
+      "run": ["matcha", "census", "unwrap", "--alt", "\\.unwrap\\(\\)", "--alt", "\\.expect\\(", "--in", "backend", "--no-tests", "--json"],
+      "expect": {
+        "/alternatives/0/files": 0,
+        "/alternatives/1/files": 0
+      }
+    },
+    {
+      "name": "census: lockfiles don't count",
+      "repo": "~/projects/software/personal/anchor",
+      "rev": "8e6adbb",
+      "run": ["matcha", "census", "license", "--alt", "\\blicense\\b", "--json"],
+      "expect": { "/alternatives/0/by_language/config": 1 }
+    },
+    {
+      "name": "census: a narrow pattern points at its word",
+      "repo": "~/projects/software/personal/anchor",
+      "rev": "2b0a01c",
+      "run": ["matcha", "census", "forms", "--alt", "useForm\\(", "--in", "frontend/src", "--json"],
+      "expect": {
+        "/alternatives/0/files": 0,
+        "/alternatives/0/near_miss/word": "useForm",
+        "/alternatives/0/near_miss/example/path": "frontend/src/features/clients/ClientForm.tsx"
+      }
+    }
+  ]
+}
