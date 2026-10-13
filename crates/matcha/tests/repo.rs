@@ -213,3 +213,19 @@ fn census_without_alternatives_explains_itself() {
         .code(2)
         .stderr(predicate::str::contains("--alt <regex>"));
 }
+
+#[test]
+fn recipe_check_says_when_history_is_too_thin_to_judge() {
+    let repo = api_repo();
+    // util0.rs changed once before: not enough to learn its companions.
+    std::fs::write(repo.path().join("lib/util0.rs"), "// changed\n").unwrap();
+    matcha(repo.path())
+        .args(["recipe", "--check"])
+        .assert()
+        .code(0)
+        .stdout(predicate::str::contains(
+            "Can't tell: none of the 1 changed files has 6 or more earlier changes",
+        ));
+    let body = json(matcha(repo.path()).args(["recipe", "--check"]), 0);
+    assert_eq!(body["judged"], 0);
+}

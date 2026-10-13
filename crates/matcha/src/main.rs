@@ -76,6 +76,9 @@ struct CensusArgs {
     /// Examples to show per alternative.
     #[arg(long, default_value_t = 3)]
     examples: usize,
+    /// Leave out test files (tests/, *.test.ts, *_test.go, ...).
+    #[arg(long)]
+    no_tests: bool,
 }
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
@@ -238,7 +241,19 @@ fn main() -> ExitCode {
 }
 
 fn run_census(root: &RepoRoot, args: CensusArgs, format: Format) -> Result<u8, String> {
-    let files = files::text_files(root, &args.paths).map_err(|e| e.to_string())?;
+    // Lockfiles and minified bundles are generated: they'd swamp the counts.
+    let files: Vec<files::SourceFile> = files::text_files(root, &args.paths)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter(|f| !files::is_generated(&f.path))
+        .filter(|f| !(args.no_tests && files::is_test(&f.path)))
+        .map(|mut f| {
+            if args.no_tests {
+                f.text = files::without_inline_tests(&f.path, &f.text);
+            }
+            f
+        })
+        .collect();
 
     if let Some(stem) = args.spelling {
         let s = census::spelling(&stem, &files);
@@ -281,17 +296,50 @@ fn run_census(root: &RepoRoot, args: CensusArgs, format: Format) -> Result<u8, S
             let title = c.query.as_deref().unwrap_or("census");
             println!("{title} ({} files searched)", c.files_searched);
             for t in &c.alternatives {
+                let mut detail = breakdown(&t.by_language);
+                if t.test_files > 0 {
+                    detail.push_str(&format!(
+                        "; {} of the {} in tests",
+                        t.test_files,
+                        plural(t.files, "file", "files")
+                    ));
+                }
                 println!(
-                    "  {:<32} {:>5} files {:>4.0}%  {:>6} matches   ({})",
+                    "  {:<32} {:>5} {} {:>4.0}%  {:>6} {}{}",
                     t.pattern,
                     t.files,
+                    plural(t.files, "file ", "files"),
                     t.share * 100.0,
                     t.matches,
-                    breakdown(&t.by_language)
+                    plural(t.matches, "match  ", "matches"),
+                    if detail.is_empty() {
+                        String::new()
+                    } else {
+                        format!("   ({detail})")
+                    }
                 );
-                for e in &t.examples {
-                    println!("      {}:{}  ({} matches)", e.path, e.line, e.matches);
+                if let Some(m) = &t.near_miss {
+                    println!(
+                        "      but `{}` alone is in {} {} (e.g. {}:{}): is the pattern too narrow?",
+                        m.word,
+                        m.files,
+                        plural(m.files, "file", "files"),
+                        m.example.path,
+                        m.example.line
+                    );
                 }
+                for e in &t.examples {
+                    println!(
+                        "      {}:{}  ({} {})",
+                        e.path,
+                        e.line,
+                        e.matches,
+                        plural(e.matches, "match", "matches")
+                    );
+                }
+            }
+            if c.alternatives.iter().any(|t| t.test_files > 0) && !args.no_tests {
+                println!("  (--no-tests leaves test files out)");
             }
         }
     }
@@ -353,13 +401,35 @@ fn run_recipe(root: &RepoRoot, args: RecipeArgs, format: Format) -> Result<u8, S
                     );
                     return Ok(exit::OK);
                 }
-                println!("Based on {} similar changes:", l.similar.len());
+                let n = l.similar.len();
+                println!("Based on {n} similar {}:", plural(n, "change", "changes"));
                 for c in l.similar.iter().take(5) {
                     println!("  {}  {}", c.hash, c.subject);
                 }
-                println!("Files they had in common:");
-                for f in &l.files {
-                    println!("  {:<60} {}/{}", f.path, f.commits, l.similar.len());
+                if n > 5 {
+                    println!("  and {} more", n - 5);
+                }
+                println!("Files most of them changed:");
+                for f in l.files.iter().take(25) {
+                    println!("  {:<60} {}/{n}", f.path, f.commits);
+                }
+                if l.files.len() > 25 {
+                    println!("  and {} more (--json lists them all)", l.files.len() - 25);
+                }
+                if l.files.is_empty() {
+                    println!("  none: they have no files in common");
+                }
+                if l.other_files > 0 {
+                    println!(
+                        "  ({} other files changed in only some of them)",
+                        l.other_files
+                    );
+                }
+                if n < 3 {
+                    println!(
+                        "Only {n} similar {}: treat this as a hint, not a recipe.",
+                        plural(n, "change", "changes")
+                    );
                 }
             }
         }
@@ -388,17 +458,37 @@ fn run_recipe(root: &RepoRoot, args: RecipeArgs, format: Format) -> Result<u8, S
         m.fix = recipe::fix_hint(root.path(), &m.missing);
     }
 
+    if changed.is_empty() && format == Format::Text {
+        println!(
+            "Nothing to check: no changes in the working tree. Use --commit <rev> to check a past commit."
+        );
+        return Ok(exit::OK);
+    }
+    // Files with too little history can't be judged; say how many could.
+    let judged = changed
+        .iter()
+        .filter(|f| cc.count(f) >= args.min_support)
+        .count();
     match format {
         Format::Json => print_json(&serde_json::json!({
             "changed": changed.len(),
+            "judged": judged,
             "commits_learned_from": cc.commits(),
             "missing": missing,
         })),
         Format::Text => {
-            if missing.is_empty() {
+            if missing.is_empty() && judged == 0 {
                 println!(
-                    "Nothing missing: no companion file is usually changed with these {} files (learned from {} commits).",
+                    "Can't tell: none of the {} changed files has {} or more earlier changes to learn from ({} commits of history). Check companions by hand.",
                     changed.len(),
+                    args.min_support,
+                    cc.commits()
+                );
+            } else if missing.is_empty() {
+                println!(
+                    "Nothing missing for the {judged} of {} changed files with enough history ({}+ earlier changes; learned from {} commits).",
+                    changed.len(),
+                    args.min_support,
                     cc.commits()
                 );
             }
@@ -525,7 +615,7 @@ fn run_ledger(root: &RepoRoot, args: LedgerArgs, format: Format) -> Result<u8, S
                 return Err("Say what verified it: --evidence \"<what you saw>\", --file <path:line>, or --cmd <text from a command you ran>.".into());
             };
             let entry = store.verify(id, evidence)?;
-            print_entry(&entry, "Verified", format);
+            print_entry(&entry, "Marked", format);
             Ok(exit::OK)
         }
         LedgerCommand::List => {
@@ -672,6 +762,10 @@ fn print_entry(entry: &ledger::Entry, verb: &str, format: Format) {
             }
         }
     }
+}
+
+fn plural<'s>(n: usize, one: &'s str, many: &'s str) -> &'s str {
+    if n == 1 { one } else { many }
 }
 
 /// `Rust 66, TypeScript 20` from a count per language, largest first.

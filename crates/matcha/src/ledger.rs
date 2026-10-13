@@ -50,10 +50,17 @@ impl Evidence {
             });
         }
         if let Some(f) = &self.file {
-            parts.push(match self.line {
+            let at = match self.line {
                 Some(l) => format!("{f}:{l}"),
                 None => f.clone(),
-            });
+            };
+            // A file's excerpt is the line it pointed at, kept in `output`.
+            parts.push(
+                match self.output.as_deref().filter(|_| self.command.is_none()) {
+                    Some(line) => format!("{at}: {}", one_line(line, 80)),
+                    None => at,
+                },
+            );
         }
         if let Some(t) = &self.text {
             parts.push(t.clone());
@@ -314,8 +321,12 @@ pub struct Flag {
     pub of: usize,
 }
 
-/// Assumed claims that show up in added lines of docs or comments, matched
-/// by the share of the claim's words the line contains.
+/// Assumed claims that show up in added lines of docs or comments. Each
+/// sentence is compared with each claim by their meaningful words: the
+/// sentence must hold at least three of the claim's words and half of them,
+/// and the words they share must be at least 40% of the words either uses.
+/// The second test keeps a long sentence that merely mentions the claim's
+/// topic from matching.
 pub fn check(entries: &[Entry], added: &[AddedLine]) -> Vec<Flag> {
     let assumed: Vec<(&Entry, BTreeSet<String>)> = entries
         .iter()
@@ -325,21 +336,24 @@ pub fn check(entries: &[Entry], added: &[AddedLine]) -> Vec<Flag> {
         .collect();
     let mut flags = Vec::new();
     for line in added.iter().filter(|l| is_prose(&l.path, &l.text)) {
-        let line_words = words(&line.text);
-        let best = assumed
-            .iter()
-            .map(|(e, w)| (e, w.intersection(&line_words).count(), w.len()))
-            .filter(|(_, shared, of)| *shared >= (*of).min(3) && *shared as f64 / *of as f64 >= 0.6)
-            .max_by(|a, b| {
-                (a.1 as f64 / a.2 as f64)
-                    .total_cmp(&(b.1 as f64 / b.2 as f64))
-                    .then(b.0.id.cmp(&a.0.id))
-            });
-        if let Some((e, shared, of)) = best {
+        let mut best: Option<(f64, &Entry, usize, usize, &str)> = None;
+        for sentence in sentences(&line.text) {
+            let sw = words(sentence);
+            for (e, cw) in &assumed {
+                let shared = cw.intersection(&sw).count();
+                let union = cw.union(&sw).count();
+                let jaccard = shared as f64 / union.max(1) as f64;
+                let covers = shared >= cw.len().min(3) && shared * 2 >= cw.len();
+                if covers && jaccard >= 0.4 && best.is_none_or(|b| jaccard > b.0) {
+                    best = Some((jaccard, e, shared, cw.len(), sentence));
+                }
+            }
+        }
+        if let Some((_, e, shared, of, sentence)) = best {
             flags.push(Flag {
                 path: line.path.clone(),
                 line: line.line,
-                text: line.text.trim().to_owned(),
+                text: sentence.trim().to_owned(),
                 id: e.id,
                 claim: e.claim.clone(),
                 shared,
@@ -348,6 +362,23 @@ pub fn check(entries: &[Entry], added: &[AddedLine]) -> Vec<Flag> {
         }
     }
     flags
+}
+
+/// A line split after `.`, `;`, `!`, or `?` followed by a space.
+fn sentences(line: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut start = 0;
+    let bytes = line.as_bytes();
+    for i in 0..bytes.len() {
+        if matches!(bytes[i], b'.' | b';' | b'!' | b'?')
+            && bytes.get(i + 1).is_some_and(|b| *b == b' ')
+        {
+            out.push(&line[start..=i]);
+            start = i + 1;
+        }
+    }
+    out.push(&line[start..]);
+    out.into_iter().filter(|s| !s.trim().is_empty()).collect()
 }
 
 /// Whether an added line is prose: in a doc, or a comment in code.
@@ -371,7 +402,7 @@ fn words(text: &str) -> BTreeSet<String> {
     ];
     text.to_lowercase()
         .split(|c: char| !c.is_alphanumeric())
-        .filter(|w| !w.is_empty() && !STOP.contains(w))
+        .filter(|w| w.chars().count() >= 2 && !STOP.contains(w))
         .map(|w| {
             w.strip_suffix('s')
                 .filter(|s| s.len() > 2)
@@ -494,6 +525,64 @@ mod tests {
             .collect();
         assert_eq!(got, [("docs/test-data.md", 11, 1)]);
         assert_eq!((flags[0].shared, flags[0].of), (3, 4));
+    }
+
+    #[test]
+    fn catches_paraphrases_that_share_most_words() {
+        let entries = [entry(
+            1,
+            Status::Assumed,
+            "Chrome's Local Network permission resets on every update",
+        )];
+        let lines = [
+            added(
+                "docs/a.md",
+                1,
+                "Updates to Chrome can reset the permission.",
+            ),
+            added(
+                "docs/a.md",
+                2,
+                "The local network permission goes away after an update.",
+            ),
+            added("docs/a.md", 3, "Chrome updates often."),
+        ];
+        let got: Vec<usize> = check(&entries, &lines).iter().map(|f| f.line).collect();
+        assert_eq!(got, [1, 2]);
+    }
+
+    #[test]
+    fn a_long_sentence_on_the_same_topic_doesnt_match() {
+        let entries = [
+            entry(
+                1,
+                Status::Assumed,
+                "Chrome's Local Network permission resets on every update",
+            ),
+            entry(
+                2,
+                Status::Assumed,
+                "the hook adds about 17 ms to each command",
+            ),
+        ];
+        let lines = [
+            added(
+                "docs/a.md",
+                1,
+                "The OpenBao session's facts give exactly the Local Network permission, with Chrome's update named. It's a unit test.",
+            ),
+            added(
+                "docs/a.md",
+                2,
+                "It prints nothing and always exits 0. It takes about 17 ms per command.",
+            ),
+        ];
+        let flags = check(&entries, &lines);
+        let got: Vec<(usize, u32, &str)> = flags
+            .iter()
+            .map(|f| (f.line, f.id, f.text.as_str()))
+            .collect();
+        assert_eq!(got, [(2, 2, "It takes about 17 ms per command.")]);
     }
 
     #[test]

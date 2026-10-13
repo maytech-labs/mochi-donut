@@ -52,6 +52,66 @@ pub fn under(path: &str, prefix: &str) -> bool {
         || (path.starts_with(prefix) && path[prefix.len()..].starts_with('/'))
 }
 
+/// Lockfiles and minified bundles: generated, so they say nothing about
+/// how the repo's people write code, and they swamp counts.
+pub fn is_generated(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    matches!(
+        name,
+        "Cargo.lock"
+            | "package-lock.json"
+            | "npm-shrinkwrap.json"
+            | "yarn.lock"
+            | "pnpm-lock.yaml"
+            | "go.sum"
+            | "poetry.lock"
+            | "uv.lock"
+            | "Pipfile.lock"
+            | "Gemfile.lock"
+            | "composer.lock"
+            | "flake.lock"
+            | "Package.resolved"
+    ) || name.ends_with(".min.js")
+        || name.ends_with(".min.css")
+}
+
+/// Whether a path is a test: under a `tests`, `test`, `__tests__`, `spec`, or
+/// `e2e` directory, or named like `*_test.go`, `*.test.ts`, `*.spec.ts`,
+/// `test_*.py`.
+pub fn is_test(path: &str) -> bool {
+    let mut segs: Vec<&str> = path.split('/').collect();
+    let name = segs.pop().unwrap_or("");
+    let stem = name.split('.').next().unwrap_or(name);
+    segs.iter().any(|s| {
+        matches!(
+            *s,
+            "tests" | "test" | "__tests__" | "spec" | "specs" | "e2e" | "testdata"
+        )
+    }) || name.contains(".test.")
+        || name.contains(".spec.")
+        || stem.ends_with("_test")
+        || stem.ends_with("_tests")
+        || stem.starts_with("test_")
+}
+
+/// A Rust file without its inline test module: everything from the first
+/// line that starts with `#[cfg(test)]`, which by convention closes the file.
+/// Other files come back unchanged.
+pub fn without_inline_tests(path: &str, text: &str) -> String {
+    if !path.ends_with(".rs") {
+        return text.to_owned();
+    }
+    let mut out = String::with_capacity(text.len());
+    for line in text.lines() {
+        if line.trim_start().starts_with("#[cfg(test)]") {
+            break;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
 /// A coarse language label from the file extension, for breakdowns.
 pub fn language(path: &str) -> &'static str {
     let ext = path.rsplit_once('.').map_or("", |(_, e)| e);
@@ -85,6 +145,36 @@ mod tests {
         assert!(under("frontend/src/a.ts", "./frontend/src"));
         assert!(!under("frontend-old/a.ts", "frontend"));
         assert!(under("a.ts", ""));
+    }
+
+    #[test]
+    fn knows_tests_and_generated_files() {
+        for t in [
+            "backend/tests/contract/a.rs",
+            "src/a.test.ts",
+            "pkg/a_test.go",
+            "test_a.py",
+            "frontend/e2e/x.spec.ts",
+        ] {
+            assert!(is_test(t), "{t}");
+        }
+        for t in ["src/testing.rs", "src/contest.ts", "docs/test-data.md"] {
+            assert!(!is_test(t), "{t}");
+        }
+        assert_eq!(
+            without_inline_tests(
+                "a.rs",
+                "fn a() {}\n#[cfg(test)]\nmod tests { x.unwrap(); }\n"
+            ),
+            "fn a() {}\n"
+        );
+        assert_eq!(
+            without_inline_tests("a.ts", "x\n#[cfg(test)]\n"),
+            "x\n#[cfg(test)]\n"
+        );
+        assert!(is_generated("frontend/package-lock.json"));
+        assert!(is_generated("Cargo.lock"));
+        assert!(!is_generated("Cargo.toml"));
     }
 
     #[test]

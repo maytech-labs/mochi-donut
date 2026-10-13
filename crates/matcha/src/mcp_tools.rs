@@ -5,7 +5,7 @@
 use mochi_common::mcp::{Args, Server, Tool};
 use serde_json::{Value, json};
 
-pub const INSTRUCTIONS: &str = "matcha answers what this repo knows, with evidence: how it usually does something (census), what else changes with a change (recipe), whether its docs are still true (drift), and what you verified versus assumed (ledger). Every result is JSON with counts and examples; read them, don't round them up. `repo` defaults to the server's working directory.";
+pub const INSTRUCTIONS: &str = "Prefer these tools to ad-hoc grep and git log when the question is about the repo as a whole. matcha answers what this repo knows, with evidence: how it usually does something (census), what else changes with a change (recipe), whether its docs are still true (drift), and what you verified versus assumed (ledger). Every result is JSON with counts and examples; read them, don't round them up. `repo` defaults to the server's working directory.";
 
 fn repo_prop() -> Value {
     json!({ "type": "string", "description": "The repo's path. Default: the server's working directory." })
@@ -117,7 +117,7 @@ pub fn tools() -> Vec<Tool> {
     vec![
         Tool {
             name: "census",
-            description: "Use before copying a pattern, choosing between two ways of doing something, or writing a guideline: counts how often this repo does each alternative, by language, with the most typical files. Give each alternative as a regex in `alts`, or a word stem in `spelling` to see which spelling the repo uses.",
+            description: "Use when asked how this repo usually does something (forms, errors, dates, naming), and before copying a pattern or writing a guideline. One call instead of several greps: give each way of doing it as a regex in `alts` and get files, matches, and share per alternative across every tracked file, by language, with the most typical files and how many are tests. Use `spelling` with a word stem to see which spelling the repo uses.",
             input_schema: json!({
                 "type": "object",
                 "properties": {

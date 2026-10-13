@@ -136,7 +136,10 @@ fn npm_script_naming(package_json: &Path, name: &str) -> Option<String> {
 pub struct Like {
     pub query: String,
     pub similar: Vec<SimilarCommit>,
+    /// Files and patterns most of the similar commits changed.
     pub files: Vec<FileShare>,
+    /// Files only some of them changed, left out of `files`.
+    pub other_files: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -157,8 +160,10 @@ const STOPWORDS: &[&str] = &[
     "that",
 ];
 
-/// Finds commits whose subjects share words with `query`, then reports the
-/// files (or file patterns) at least half of them changed.
+/// Finds commits whose subjects share words with `query` (or, weighted
+/// less, whose changed paths do: "migration" finds commits that touched
+/// `migrations/`), then reports the files (or file patterns) most of them
+/// changed.
 pub fn like(query: &str, commits: &[Commit], max_similar: usize) -> Like {
     let terms: Vec<String> = subject_words(query)
         .into_iter()
@@ -166,7 +171,12 @@ pub fn like(query: &str, commits: &[Commit], max_similar: usize) -> Like {
         .collect();
     let mut scored: Vec<(usize, &Commit)> = commits
         .iter()
-        .map(|c| (score(&terms, &c.subject), c))
+        .map(|c| {
+            (
+                2 * score(&terms, &c.subject) + path_score(&terms, &c.files),
+                c,
+            )
+        })
         .filter(|(s, _)| *s > 0)
         .collect();
     let best = scored.iter().map(|(s, _)| *s).max().unwrap_or(0);
@@ -189,7 +199,9 @@ pub fn like(query: &str, commits: &[Commit], max_similar: usize) -> Like {
             }
         }
     }
-    let half = n.div_ceil(2).max(1);
+    // A strict majority: with 2 similar commits, a file needs both.
+    let half = n / 2 + 1;
+    let other_files = exact.values().filter(|k| **k < half).count();
     let mut files: Vec<FileShare> = exact
         .iter()
         .filter(|(_, k)| **k >= half)
@@ -210,6 +222,25 @@ pub fn like(query: &str, commits: &[Commit], max_similar: usize) -> Like {
             });
         }
     }
+    // Three or more files in one directory with one extension and the same
+    // count read better as their pattern: `.sqlx/*.json`, not 13 hashes.
+    let mut groups: BTreeMap<(String, usize), usize> = BTreeMap::new();
+    for f in files.iter().filter(|f| !f.path.contains('*')) {
+        *groups.entry((generalize(&f.path), f.commits)).or_insert(0) += 1;
+    }
+    for ((pattern, k), count) in groups {
+        if count >= 3 && pattern != "*" {
+            files.retain(|f| {
+                f.path.contains('*') || generalize(&f.path) != pattern || f.commits != k
+            });
+            if !files.iter().any(|f| f.path == pattern) {
+                files.push(FileShare {
+                    path: format!("{pattern}  ({count} files)"),
+                    commits: k,
+                });
+            }
+        }
+    }
     files.sort_by(|a, b| b.commits.cmp(&a.commits).then_with(|| a.path.cmp(&b.path)));
     Like {
         query: query.to_owned(),
@@ -221,7 +252,22 @@ pub fn like(query: &str, commits: &[Commit], max_similar: usize) -> Like {
             })
             .collect(),
         files,
+        other_files,
     }
+}
+
+/// How many query terms name a part of a path the commit changed.
+fn path_score(terms: &[String], files: &[String]) -> usize {
+    terms
+        .iter()
+        .filter(|t| {
+            files.iter().any(|f| {
+                subject_words(f)
+                    .iter()
+                    .any(|w| w.starts_with(t.as_str()) || t.starts_with(w.as_str()))
+            })
+        })
+        .count()
 }
 
 fn subject_words(s: &str) -> Vec<String> {
@@ -461,6 +507,49 @@ mod tests {
         assert!(paths.contains(&"web/openapi.json"));
         assert!(paths.contains(&"api/routes/*.rs"));
         assert!(!paths.contains(&"api/routes/clients.rs"));
+    }
+
+    #[test]
+    fn like_also_matches_changed_paths() {
+        let commits = vec![
+            commit(
+                "1",
+                "Ledger core",
+                &["db/migrations/1.sql", "db/.sqlx/a.json", "src/ledger.rs"],
+            ),
+            commit(
+                "2",
+                "Renewals",
+                &["db/migrations/2.sql", "db/.sqlx/b.json", "src/renewals.rs"],
+            ),
+            commit("3", "Tidy readme", &["README.md"]),
+        ];
+        let l = like("migration", &commits, 10);
+        assert_eq!(l.similar.len(), 2);
+        let paths: Vec<&str> = l.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(
+            paths,
+            ["db/.sqlx/*.json", "db/migrations/*.sql", "src/*.rs"]
+        );
+        // Each exact file was in only one of the two.
+        assert_eq!(l.other_files, 6);
+    }
+
+    #[test]
+    fn like_collapses_many_files_into_their_pattern() {
+        let commits = vec![commit(
+            "1",
+            "Email outbox",
+            &[
+                "db/.sqlx/q1.json",
+                "db/.sqlx/q2.json",
+                "db/.sqlx/q3.json",
+                "src/mail.rs",
+            ],
+        )];
+        let l = like("email", &commits, 10);
+        let paths: Vec<&str> = l.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(paths, ["db/.sqlx/*.json  (3 files)", "src/mail.rs"]);
     }
 
     #[test]

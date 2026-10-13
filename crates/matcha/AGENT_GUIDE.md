@@ -4,6 +4,7 @@ When to run what
   Before copying a pattern or writing a guideline
     matcha census "<what>" --alt '<regex>' --alt '<regex>'   compare ways of doing it
     matcha census --spelling <stem>                          which spelling the repo uses
+    add --no-tests to leave tests out; "but `x` alone is in N files" means widen the regex
   Before a change you haven't made in this repo
     matcha recipe --like "<words from a commit subject>"     files similar changes touched
   Before committing (best from a hook)

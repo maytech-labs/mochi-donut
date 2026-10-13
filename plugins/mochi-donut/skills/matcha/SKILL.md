@@ -1,6 +1,6 @@
 ---
 name: matcha
-description: Use before copying a pattern or writing a guideline (how does this repo usually do X?), before a change you haven't made in this repo (what else usually changes with it?), before trusting a doc or after changing code a doc describes (is it still true?), and whenever you check or assume a fact you'll write into a doc, comment, or PR (record it in the ledger).
+description: Use when asked how this repo usually does something, before copying a pattern or writing a guideline, before a change you haven't made in this repo (what else usually changes with it?), before trusting a doc or after changing code a doc describes (is it still true?), and whenever you check or assume a fact you'll write into a doc, comment, or PR (record it in the ledger).
 ---
 
 # matcha: what this repo knows

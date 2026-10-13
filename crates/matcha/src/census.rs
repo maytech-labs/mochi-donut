@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use regex::Regex;
 use serde::Serialize;
 
-use crate::files::{SourceFile, language};
+use crate::files::{SourceFile, is_test, language};
 
 /// One alternative's tally.
 #[derive(Debug, Serialize)]
@@ -16,10 +16,24 @@ pub struct Tally {
     /// Files with at least one match.
     pub files: usize,
     pub matches: usize,
+    /// How many of `files` are tests.
+    pub test_files: usize,
     /// This alternative's share of all matching files, 0 to 1.
     pub share: f64,
+    /// The pattern's core word, when it alone appears in more files than the
+    /// pattern does, so a too-narrow regex (`useForm\(` against
+    /// `useForm<T>(`) doesn't read as "never used".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub near_miss: Option<NearMiss>,
     pub by_language: BTreeMap<&'static str, usize>,
     pub examples: Vec<Example>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct NearMiss {
+    pub word: String,
+    pub files: usize,
+    pub example: Example,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -89,6 +103,7 @@ fn tally(re: &Regex, files: &[SourceFile], examples: usize) -> Tally {
         }
     }
     let files_matched = hits.len();
+    let test_files = hits.iter().filter(|h| is_test(&h.path)).count();
     hits.sort_by(|a, b| {
         b.matches
             .cmp(&a.matches)
@@ -100,10 +115,64 @@ fn tally(re: &Regex, files: &[SourceFile], examples: usize) -> Tally {
         pattern: re.as_str().to_owned(),
         files: files_matched,
         matches,
+        test_files,
         share: 0.0,
+        near_miss: near_miss(re, files).filter(|m| m.files > files_matched),
         by_language,
         examples: hits,
     }
+}
+
+/// The longest literal word in a regex (`useForm` in `useForm\(`), searched
+/// on its own.
+fn near_miss(re: &Regex, files: &[SourceFile]) -> Option<NearMiss> {
+    let word = core_word(re.as_str())?;
+    let word_re = Regex::new(&format!(r"\b{}\b", regex::escape(&word))).ok()?;
+    let mut hits = files.iter().filter_map(|f| {
+        f.text
+            .lines()
+            .position(|l| word_re.is_match(l))
+            .map(|i| (f, i + 1))
+    });
+    let (first, line) = hits.next()?;
+    Some(NearMiss {
+        word,
+        files: 1 + hits.count(),
+        example: Example {
+            path: first.path.clone(),
+            line,
+            matches: 1,
+        },
+    })
+}
+
+/// The longest run of identifier characters in a pattern that isn't a
+/// regex escape, if it's at least 4 long.
+fn core_word(pattern: &str) -> Option<String> {
+    let mut best = String::new();
+    let mut cur = String::new();
+    let mut chars = pattern.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            // `\w`, `\b`, `\(`: an escape ends the word and isn't part of one.
+            chars.next();
+            if cur.len() > best.len() {
+                best = std::mem::take(&mut cur);
+            }
+            cur.clear();
+        } else if c.is_ascii_alphanumeric() || c == '_' {
+            cur.push(c);
+        } else {
+            if cur.len() > best.len() {
+                best = std::mem::take(&mut cur);
+            }
+            cur.clear();
+        }
+    }
+    if cur.len() > best.len() {
+        best = cur;
+    }
+    (best.len() >= 4).then_some(best)
 }
 
 /// One spelling of a word and where it appears.
@@ -232,6 +301,27 @@ mod tests {
         assert_eq!(draft.examples[0].line, 1);
         let other = &c.alternatives[1];
         assert_eq!(other.examples[0].path, "c/Client.tsx");
+    }
+
+    #[test]
+    fn a_pattern_that_matches_nothing_points_at_near_misses() {
+        let files = [file(
+            "src/ClientForm.tsx",
+            "import x;\nconst f = useForm<Values>({});\n",
+        )];
+        let patterns = [Regex::new(r"useForm\(").unwrap()];
+        let c = alternatives(None, &patterns, &files, 3);
+        let miss = c.alternatives[0].near_miss.as_ref().unwrap();
+        assert_eq!((miss.word.as_str(), miss.files), ("useForm", 1));
+        assert_eq!(
+            (miss.example.path.as_str(), miss.example.line),
+            ("src/ClientForm.tsx", 2)
+        );
+        assert_eq!(
+            core_word(r"\bTermStatus::Cancel+ed\b").as_deref(),
+            Some("TermStatus")
+        );
+        assert_eq!(core_word(r"\w+\("), None);
     }
 
     #[test]

@@ -127,6 +127,8 @@ enum Claim<'s> {
     Script(&'s str),
     Path(&'s str),
     Symbol(&'s str),
+    /// A naming prefix or suffix: `is_`, `_cents`.
+    Affix(&'s str),
 }
 
 /// Everything the checks look things up in, built once per run.
@@ -135,7 +137,10 @@ pub struct Repo<'a> {
     all: &'a [SourceFile],
     files: BTreeSet<String>,
     dirs: BTreeSet<String>,
+    /// Claimed names and affixes found in source files.
     tokens: HashSet<String>,
+    /// For one-word capitalized names, the docs that mention them.
+    doc_mentions: HashMap<String, HashSet<String>>,
     source_files: usize,
     make_targets: Option<HashSet<String>>,
     npm_scripts: Option<HashSet<String>>,
@@ -195,19 +200,25 @@ impl<'a> Repo<'a> {
             files: tracked.into_iter().collect(),
             dirs,
             tokens: HashSet::new(),
+            doc_mentions: HashMap::new(),
             source_files,
             make_targets,
             npm_scripts,
             anchors,
         };
-        repo.tokens = repo.find_symbols(all, docs);
+        (repo.tokens, repo.doc_mentions) = repo.find_symbols(all, docs);
         repo
     }
 
     /// The symbol names `docs` claim that appear in a source file. Scanning
     /// for just these, not every identifier, keeps big repos fast.
-    fn find_symbols(&self, all: &[SourceFile], docs: &[&SourceFile]) -> HashSet<String> {
+    fn find_symbols(
+        &self,
+        all: &[SourceFile],
+        docs: &[&SourceFile],
+    ) -> (HashSet<String>, HashMap<String, HashSet<String>>) {
         let mut wanted: HashSet<&str> = HashSet::new();
+        let mut affixes: HashSet<&str> = HashSet::new();
         let parsed: Vec<(&str, markdown::Doc)> = docs
             .iter()
             .filter(|d| !is_past_or_future(&d.path))
@@ -218,23 +229,63 @@ impl<'a> Repo<'a> {
                 continue;
             }
             for span in &p.spans {
-                if let Some(Claim::Symbol(name)) = self.classify(doc, span) {
-                    wanted.insert(name);
+                match self.classify(doc, span) {
+                    Some(Claim::Symbol(name)) => {
+                        wanted.insert(name);
+                    }
+                    Some(Claim::Affix(affix)) => {
+                        affixes.insert(affix);
+                    }
+                    _ => {}
                 }
             }
         }
         let mut found = HashSet::new();
+        let mut affixes_left: Vec<&str> = affixes.into_iter().collect();
         for file in all.iter().filter(|f| is_source(&f.path)) {
-            if found.len() == wanted.len() {
+            if found.len() == wanted.len() && affixes_left.is_empty() {
                 break;
             }
             for word in identifiers(&file.text) {
                 if wanted.contains(word) && !found.contains(word) {
                     found.insert(word.to_owned());
                 }
+                affixes_left.retain(|a| {
+                    let hit = word.len() > a.len()
+                        && if a.starts_with('_') {
+                            word.ends_with(a)
+                        } else {
+                            word.starts_with(a)
+                        };
+                    if hit {
+                        found.insert((*a).to_owned());
+                    }
+                    !hit
+                });
             }
         }
-        found
+        // One capitalized word (`Suspense`, `Accepted`) is as likely English
+        // as code. Note which docs use the missing ones, so a word the docs
+        // share (an ADR status) isn't reported as a missing type.
+        let mut mentions: HashMap<String, HashSet<String>> = HashMap::new();
+        let words: HashSet<&str> = wanted
+            .iter()
+            .copied()
+            .filter(|w| one_word(w) && !found.contains(*w))
+            .collect();
+        if !words.is_empty() {
+            for file in all.iter().filter(|f| is_doc(&f.path)) {
+                for word in identifiers(&file.text) {
+                    if words.contains(word) {
+                        mentions
+                            .entry(word.to_owned())
+                            .or_default()
+                            .insert(file.path.clone());
+                    }
+                }
+            }
+        }
+        (found, mentions)
     }
 
     /// Checks every claim in `docs`.
@@ -443,11 +494,15 @@ impl<'a> Repo<'a> {
             [_] => {}
             _ => return None,
         }
-        if placeholder(code) {
+        // `Docs:` is a label, not a name.
+        if placeholder(code) || code.ends_with(':') {
             return None;
         }
         if looks_like_path(code, |first| self.exists_near(doc, first)) {
             return Some(Claim::Path(code));
+        }
+        if is_affix(code) {
+            return Some(Claim::Affix(code));
         }
         symbol_name(code).map(Claim::Symbol)
     }
@@ -457,9 +512,35 @@ impl<'a> Repo<'a> {
             Claim::Make(targets) => return Some((Kind::MakeTarget, self.check_make(&targets))),
             Claim::Script(script) => return Some((Kind::NpmScript, self.check_script(script))),
             Claim::Path(path) => return self.check_path(doc, path).map(|o| (Kind::Path, o)),
+            Claim::Affix(affix) => {
+                let outcome = if self.tokens.contains(affix) {
+                    Outcome::Holds
+                } else {
+                    let (side, verb) = if affix.starts_with('_') {
+                        ("ends", "suffix")
+                    } else {
+                        ("starts", "prefix")
+                    };
+                    Outcome::Fails {
+                        reason: format!(
+                            "no identifier in any source file {side} with `{affix}` ({} searched)",
+                            self.source_files
+                        ),
+                        fix: format!(
+                            "If the code names things differently now, update the doc's {verb}. If it names something outside this repo, put <!-- matcha: skip --> on the line before."
+                        ),
+                    }
+                };
+                return Some((Kind::Symbol, outcome));
+            }
             Claim::Symbol(name) => name,
         };
-        let outcome = if self.tokens.contains(name) {
+        let in_other_doc = one_word(name)
+            && self
+                .doc_mentions
+                .get(name)
+                .is_some_and(|docs| docs.iter().any(|d| d != doc));
+        let outcome = if self.tokens.contains(name) || in_other_doc {
             Outcome::Holds
         } else {
             Outcome::Fails {
@@ -540,7 +621,14 @@ impl<'a> Repo<'a> {
         if candidates.iter().any(|c| self.exists(c)) {
             return Some(Outcome::Holds);
         }
-        let tail = format!("/{}", candidates.last().map_or(p, String::as_str));
+        // A `../` path in a doc is often written from the code's point of
+        // view (`../../api` in an import), so match its tail too.
+        let rest = p.trim_start_matches("../");
+        let tail = if code.starts_with("../") {
+            format!("/{rest}")
+        } else {
+            format!("/{}", candidates.last().map_or(p, String::as_str))
+        };
         if self
             .files
             .iter()
@@ -668,6 +756,24 @@ impl<'a> Repo<'a> {
     }
 }
 
+/// A naming prefix or suffix: `_cents`, `is_`. Not `__init__` or `_`.
+fn is_affix(code: &str) -> bool {
+    let core = code.trim_matches('_');
+    let one_side = code.starts_with('_') != code.ends_with('_');
+    one_side
+        && !core.is_empty()
+        && !code.contains("__")
+        && core.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+/// One capitalized word: `Suspense`, `Accepted`. Not `ClientId` or `HTTP`.
+fn one_word(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(|c| c.is_ascii_uppercase())
+        && chars.as_str().len() >= 2
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+}
+
 /// Code and config, where symbols are looked up: everything but prose.
 fn is_source(path: &str) -> bool {
     !is_doc(path) && !path.ends_with(".txt") && !path.ends_with(".rst")
@@ -749,6 +855,7 @@ fn negated(before: &str, after: &str) -> bool {
         "disallow",
         "disallowed",
         "unlike",
+        "drop",
         "except",
         "planned",
         "future",
@@ -849,7 +956,17 @@ fn placeholder_words(s: &str) -> bool {
         || lower.split(|c: char| !c.is_ascii_alphanumeric()).any(|w| {
             matches!(
                 w,
-                "foo" | "bar" | "baz" | "qux" | "example" | "your" | "my" | "xx" | "yy"
+                "foo"
+                    | "bar"
+                    | "baz"
+                    | "qux"
+                    | "example"
+                    | "your"
+                    | "my"
+                    | "xx"
+                    | "yy"
+                    | "verb"
+                    | "noun"
             )
         })
 }
@@ -1165,6 +1282,20 @@ mod tests {
             Some("policy-term")
         );
         assert_eq!(closest("tset", &["test", "lint"]), Some("test"));
+    }
+
+    #[test]
+    fn knows_affixes_and_single_words() {
+        for a in ["_cents", "is_", "_for_update", "has_"] {
+            assert!(is_affix(a), "{a}");
+        }
+        for a in ["__init__", "_", "policy_term", "_x_", "__x"] {
+            assert!(!is_affix(a), "{a}");
+        }
+        assert!(one_word("Suspense"));
+        assert!(!one_word("ClientId"));
+        assert!(!one_word("HTTP"));
+        assert!(!one_word("Ab"));
     }
 
     #[test]
