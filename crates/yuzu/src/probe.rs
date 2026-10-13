@@ -165,7 +165,14 @@ pub fn curl(target: &Target, family: Option<u8>, timeout: Duration) -> Attempt {
             _ => None,
         },
         error: (code != 0).then(|| {
-            let msg = out.stderr.trim().trim_start_matches("curl: ");
+            // curl's first line is the error; the rest is boilerplate.
+            let msg = out
+                .stderr
+                .trim()
+                .lines()
+                .next()
+                .unwrap_or("")
+                .trim_start_matches("curl: ");
             if msg.is_empty() {
                 format!("curl exited with {code}")
             } else {
@@ -573,7 +580,26 @@ pub fn diagnose(f: &Facts) -> Vec<Diagnosis> {
     }
 
     let unresolved = f.dns.addrs().next().is_none();
-    if !f.terminal.ok && f.browser.is_some_and(|b| !b.attempt.ok) && unresolved {
+    let both_fail = !f.terminal.ok && f.browser.is_some_and(|b| !b.attempt.ok);
+    let browser_cert =
+        browser_error.is_some_and(|c| c.starts_with("ERR_CERT") || c.contains("SSL"));
+    if both_fail && f.terminal.cert_trusted == Some(false) && browser_cert {
+        out.push(Diagnosis {
+            cause: format!(
+                "{}'s certificate is rejected everywhere, not just here",
+                f.target.host
+            ),
+            evidence: format!(
+                "curl: {}. {name}: {}.",
+                f.terminal
+                    .error
+                    .as_deref()
+                    .unwrap_or("certificate not trusted"),
+                browser_error.unwrap_or("certificate error")
+            ),
+            fix: cert_fix(f.terminal.error.as_deref().unwrap_or("")),
+        });
+    } else if both_fail && unresolved {
         out.push(Diagnosis {
             cause: format!("{} doesn't resolve from this machine", f.target.host),
             evidence: format!(
@@ -586,7 +612,7 @@ pub fn diagnose(f: &Facts) -> Vec<Diagnosis> {
                 f.target.host
             ),
         });
-    } else if !f.terminal.ok && f.browser.is_some_and(|b| !b.attempt.ok) {
+    } else if both_fail {
         out.push(Diagnosis {
             cause: "It fails from the terminal too, so it isn't the browser".into(),
             evidence: format!(
@@ -601,6 +627,20 @@ pub fn diagnose(f: &Facts) -> Vec<Diagnosis> {
         });
     }
     out
+}
+
+/// What to do about a certificate both sides reject, from curl's reason.
+fn cert_fix(curl_error: &str) -> String {
+    let e = curl_error.to_lowercase();
+    if e.contains("expired") {
+        "Renew the server's certificate.".into()
+    } else if e.contains("self signed") || e.contains("self-signed") || e.contains("local issuer") {
+        "If the server uses your own or your company's CA (a homelab, an internal service), add that CA to the system trust store; then curl and the browser both accept it. Otherwise, give the server a certificate from a public CA.".into()
+    } else if e.contains("name") || e.contains("subject") {
+        "The certificate doesn't cover this name: reissue it with the name as a subject alternative name, or use a name it covers.".into()
+    } else {
+        "Fix the server's certificate: its names, chain, and dates.".into()
+    }
 }
 
 fn list_or_none(v: &[String]) -> String {
@@ -891,6 +931,41 @@ mod tests {
         assert_eq!(
             d[0].cause,
             "nonexistent.invalid doesn't resolve from this machine"
+        );
+    }
+
+    #[test]
+    fn a_certificate_both_sides_reject_is_the_servers_problem() {
+        let target = parse_url("https://expired.badssl.com/").unwrap();
+        let dns = Dns {
+            v4: vec!["104.154.89.105".into()],
+            ..Dns::default()
+        };
+        let terminal = Attempt {
+            cert_trusted: Some(false),
+            error: Some("(60) SSL certificate problem: certificate has expired".into()),
+            ..Attempt::default()
+        };
+        let browser = chrome(failed("ERR_CERT_DATE_INVALID"), 0);
+        let d = diagnose(&Facts {
+            target: &target,
+            dns: &dns,
+            terminal: &terminal,
+            terminal_v4: None,
+            terminal_v6: None,
+            browser: Some(&browser),
+            proxies: &Proxies::default(),
+            macos: true,
+            ca_env: Vec::new(),
+            now: 0,
+        });
+        assert_eq!(d.len(), 1, "{d:?}");
+        assert!(d[0].cause.contains("certificate is rejected everywhere"));
+        assert!(d[0].evidence.contains("certificate has expired"));
+        assert_eq!(d[0].fix, "Renew the server's certificate.");
+        assert!(
+            cert_fix("(60) SSL certificate problem: self signed certificate")
+                .contains("add that CA")
         );
     }
 
