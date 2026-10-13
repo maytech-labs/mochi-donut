@@ -3,7 +3,7 @@
 <!-- matcha: links-only -->
 <!-- Its examples name files in other repos. -->
 
-- **Status:** Built (2026-10-13). Proposed in [ADR 0028](../decisions/0028-propose-ube-and-taro.md); how it was built, and where it differs from this design, is in [ADR 0029](../decisions/0029-ube.md).
+- **Status:** Built (2026-10-13). Proposed in [ADR 0028](../decisions/0028-propose-ube-and-taro.md); how it was built, and where it differs from this design, is in [ADR 0029](../decisions/0029-ube.md) and [ADR 0031](../decisions/0031-ube-fixes.md).
 - **Date:** 2026-10-13
 
 ## Summary
@@ -92,7 +92,9 @@ Results go in `.ube/` (self-ignoring, like `.matcha/`): per tree hash, the check
 All four commands are built. Differences from the design above:
 
 - **No `.ube.toml`.** Checks come only from what the repo declares; nothing so far needed more.
-- **Selection is by package**, not by individual test file: the package that holds a file, plus every Cargo package that depends on it through a path dependency. Picking test files from history (recipe's statistics) isn't built.
+- **Selection is by package**, not by individual test file: the package that holds a file, plus every Cargo package that depends on it through a path dependency, including ones inherited from `[workspace.dependencies]`. Picking test files from history (recipe's statistics) isn't built.
+- **The change is measured from where the branch started** (its merge-base with the default branch), so committed work counts, and `--base` uses the merge-base too.
+- **Rust changes get the repo's own lints**: `cargo fmt --check` and clippy, with `-D warnings` when the repo denies warnings, only when its CI, Makefile, justfile, or xtask runs them.
 - **`mutate` uses its own line-based mutations** (comparison and boolean operators, arithmetic, `true`/`false`), not cargo-mutants or Stryker.
 - **The Stop hook is built but not in the hooks plugin.** Whether it helps or nags is the trial's question.
 

@@ -53,3 +53,5 @@ taro has no `config.md`: it has nothing to configure.
 - [0028 Propose ube (the change in hand) and taro (the forge and the team)](decisions/0028-propose-ube-and-taro.md)
 - [0029 ube: checks by package from what the repo declares, results by tree, line-based mutations](decisions/0029-ube.md)
 - [0030 taro: gh for the forge, conventions from merged PRs, cleanup by proof](decisions/0030-taro.md)
+- [0031 ube measures a branch from where it started, and plans the Rust lints the repo runs](decisions/0031-ube-fixes.md)
+- [0032 taro takes required checks from isRequired, and blocks when GitHub does](decisions/0032-taro-fixes.md)

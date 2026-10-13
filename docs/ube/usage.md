@@ -13,10 +13,12 @@ Every command takes `--json` (one JSON object on stdout) and `--repo <path>` (de
 ## plan
 
 ```sh
-ube plan                  # for the working tree's changes against HEAD
-ube plan --base main      # for everything since main
+ube plan                  # this branch's changes, committed or not
+ube plan --base v1.2      # everything since HEAD left v1.2
 ube plan --all            # the full suite
 ```
+
+The change is measured from where the branch started: the merge-base of `HEAD` and the default branch (a remote's `HEAD`, else `main` or `master`), plus uncommitted and untracked files. On the default branch, or a branch with no commits of its own, that's `HEAD`, so only uncommitted changes count. `--base <REV>` uses `REV`'s merge-base with `HEAD`, so commits that landed on `REV` later aren't counted. The output names the base, and `--json` has it as `base` (`null` for `HEAD`).
 
 Lists each check with its command, the directory it runs in, and why it applies, then what the repo declares that the plan leaves out. How checks are found is in [config.md](config.md#how-checks-are-found). When a changed file has no check of its own, the plan is the full suite, and says which file caused that. Always exit 0.
 
@@ -25,17 +27,17 @@ Lists each check with its command, the directory it runs in, and why it applies,
 ```sh
 ube run                              # the plan
 ube run --base main --all            # the full suite
-ube run --rerun-failed               # only what failed last time on this exact code
+ube run --rerun-failed               # only what failed in the last run, after a fix
 ube run -- cargo test -p mochi-ube   # one command; one argument runs through sh -c
 ```
 
 | Flag | |
 |---|---|
 | `--base <REV>`, `--all` | As for `plan` |
-| `--rerun-failed` | Only the checks whose last result on this tree failed |
+| `--rerun-failed` | Only the checks that failed in the last run, whatever has changed since |
 | `--timeout <SECS>` | Stop a check after this long (default 1800) |
 
-Progress goes to stderr. Each failure is reported in a few lines: the file and line, the test, the message, and a command that reruns just it, for cargo test, build, and clippy; pytest; go test; vitest and jest; tsc; and eslint. When no failure can be read from the output, its last lines are shown instead. Results are stored under the tree they ran on. A fully green run is recorded in matcha's ledger as a verified claim, when matcha is installed. If the checks changed files, the output says the code now differs from what they proved.
+Progress goes to stderr. Each failure is reported in a few lines: the file and line, the test, the message, and a command that reruns just it, for cargo test, build, clippy, and fmt; pytest; go test; vitest and jest; tsc; and eslint. When no failure can be read from the output, its last lines are shown instead. Results are stored under the tree they ran on. A fully green run is recorded in matcha's ledger as a verified claim, when matcha is installed. If the checks changed files, the output says the code now differs from what they proved.
 
 ## done
 

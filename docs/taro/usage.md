@@ -23,11 +23,12 @@ Each item is `ok`, `warn`, `BLOCK`, or unknown, with what to do:
 |---|---|
 | `state`, `draft` | The PR is closed, merged, or a draft |
 | `conflicts` | It conflicts with its base |
-| `behind` | (warns) The base has moved on |
-| `checks` | A required check failed, is still running, or wasn't reported. If the required checks can't be read, every check counts, and it says so. |
+| `behind` | The base requires branches to be up to date, and this one isn't. The fix is `gh pr update-branch`. |
+| `checks` | A required check failed, is still running, or wasn't reported. GitHub says which reported checks are required (`isRequired`); rulesets and branch protection add ones that haven't reported. When it can't be told, every check counts, and it says so. |
 | `reviews` | Changes were requested, or an approval is required |
 | `threads` | A review thread is unresolved |
 | `changelog`, `adr`, `title` | At least 90% of the last 30 merged PRs (and at least 10 of them) changed a changelog, an ADR, or had a Conventional Commits title, and this one doesn't. From 60%, it warns. |
+| `rules` | GitHub says the PR is blocked and nothing above explains it: signed commits, a deployment, a merge queue, or a ruleset taro doesn't read. `gh pr view <n> --web` shows what it's waiting for. |
 
 ## reviews
 
@@ -60,7 +61,7 @@ taro flaky
 taro flaky --since 14d
 ```
 
-From GitHub Actions runs in the window: a run that passed on a rerun after a failed attempt (named by job), or a workflow that both failed and passed on one commit. Each with how often, out of how many runs, and its latest example. A check that only ever fails for real isn't listed.
+From GitHub Actions runs in the window: a run that passed on a rerun after a failed attempt (named by job), or a workflow that both failed and passed on one commit. Each with how often, out of how many runs, and its latest example. A check that only ever fails for real isn't listed, and neither is a cancelled run or a rerun of one that had passed.
 
 ## cleanup
 
@@ -71,7 +72,7 @@ taro cleanup --delete                # delete the proved ones, after asking
 taro cleanup --delete --yes          # without asking
 ```
 
-A branch is merged when its content is in the base, proved by ancestry (merge commits), by every commit's patch being there (rebase merges), by one commit equal to the whole branch (squash merges), or by every file it changed matching. Anything else is kept, with the number of commits not in the base and one of their subjects. `--delete` asks first; with no terminal to ask on, it needs `--yes`. Remote branches are deleted with `git push <remote> --delete`, which yuzu's hook checks like any push.
+A branch is merged when its content is in the base, proved by ancestry (merge commits), by every commit's patch being there (rebase merges), by one commit equal to the whole branch (squash merges), or by every file it changed matching. Anything else is kept, with the number of commits not in the base and one of their subjects. A branch checked out in another worktree is always kept. `--delete` asks first; with no terminal to ask on, it needs `--yes`. Remote branches are deleted with `git push <remote> --delete`, which yuzu's hook checks like any push.
 
 ## Serving agents
 
