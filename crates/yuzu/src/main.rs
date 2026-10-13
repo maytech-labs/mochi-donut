@@ -8,6 +8,7 @@ mod mcp_tools;
 mod policy;
 mod probe;
 mod proc;
+mod sessions;
 mod shell;
 mod status;
 mod targets;
@@ -93,6 +94,26 @@ enum Command {
         #[arg(long, global = true)]
         not: bool,
     },
+    /// How agents used tools, from their transcripts here, and what the
+    /// hook asked or denied.
+    Sessions {
+        /// A CLI or MCP server name to count. Repeatable. Default: matcha, yuzu.
+        #[arg(long = "tool", value_name = "NAME")]
+        tools: Vec<String>,
+        /// Only sessions this recent: 14d, 24h.
+        #[arg(long, default_value = "14d", value_name = "DURATION")]
+        since: String,
+        /// Only sessions that ran in this directory or below it.
+        #[arg(long, value_name = "PATH")]
+        project: Option<String>,
+        /// Leave out sessions in this directory or below, such as the
+        /// tool's own repo while you build it. Repeatable.
+        #[arg(long = "exclude", value_name = "PATH")]
+        exclude: Vec<String>,
+        /// A transcript folder to read instead of finding them. Repeatable.
+        #[arg(long = "dir", value_name = "PATH")]
+        dirs: Vec<String>,
+    },
     /// Serve status, check, and probe as MCP tools on stdin and stdout.
     Mcp,
     /// Print a short guide to yuzu, written for AI agents.
@@ -146,6 +167,21 @@ fn main() -> ExitCode {
         Command::Status => run_status(&ctx, format),
         Command::Mcp => mcp_tools::serve(),
         Command::Whoami { verify } => run_whoami(&ctx, verify, format),
+        Command::Sessions {
+            tools,
+            since,
+            project,
+            exclude,
+            dirs,
+        } => run_sessions(
+            &ctx,
+            tools,
+            &since,
+            project.as_deref(),
+            &exclude,
+            &dirs,
+            format,
+        ),
         Command::Wait {
             condition,
             timeout,
@@ -240,6 +276,144 @@ fn clock(d: std::time::Duration) -> String {
         (0, 0, s) => format!("{s}s"),
         (0, m, s) => format!("{m}m{s:02}s"),
         (h, m, _) => format!("{h}h{m:02}m"),
+    }
+}
+
+fn run_sessions(
+    ctx: &Ctx,
+    mut tools: Vec<String>,
+    since: &str,
+    project: Option<&str>,
+    exclude: &[String],
+    dirs: &[String],
+    format: Format,
+) -> u8 {
+    let since = match parse_age(since) {
+        Ok(secs) => {
+            mochi_common::time::rfc3339(mochi_common::time::unix_now().saturating_sub(secs))
+        }
+        Err(e) => {
+            eprintln!("{e}");
+            return exit::USAGE;
+        }
+    };
+    if tools.is_empty() {
+        tools = vec!["matcha".into(), "yuzu".into()];
+    }
+    let dirs: Vec<std::path::PathBuf> = if dirs.is_empty() {
+        sessions::transcript_dirs(ctx)
+    } else {
+        let mut given: Vec<std::path::PathBuf> = dirs
+            .iter()
+            .map(|d| ctx.path(d))
+            .map(|d| d.canonicalize().unwrap_or(d))
+            .collect();
+        given.sort();
+        given.dedup();
+        given
+    };
+    if dirs.is_empty() {
+        eprintln!(
+            "No agent transcripts found (looked for ~/.claude*/projects). Pass --dir <path>."
+        );
+        return exit::USAGE;
+    }
+    let project = project.map(|p| ctx.path(p));
+    let exclude: Vec<std::path::PathBuf> = exclude.iter().map(|p| ctx.path(p)).collect();
+    let r = sessions::report(ctx, &dirs, &tools, &since, project.as_deref(), &exclude);
+    match format {
+        Format::Json => print_json(&r),
+        Format::Text => {
+            println!(
+                "{} sessions since {} in {} transcript {}.",
+                r.sessions,
+                &r.since[..10],
+                r.transcript_dirs.len(),
+                if r.transcript_dirs.len() == 1 {
+                    "folder"
+                } else {
+                    "folders"
+                }
+            );
+            for u in &r.tools {
+                if u.calls == 0 {
+                    println!("  {:<8} not used", u.tool);
+                    continue;
+                }
+                println!(
+                    "  {:<8} used in {} of {} sessions, {} calls ({} unprompted, in {} {})",
+                    u.tool,
+                    u.sessions_using,
+                    r.sessions,
+                    u.calls,
+                    u.unprompted_calls,
+                    u.unprompted_sessions,
+                    if u.unprompted_sessions == 1 {
+                        "session"
+                    } else {
+                        "sessions"
+                    }
+                );
+                let mut by: Vec<(&String, &usize)> = u.by_command.iter().collect();
+                by.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
+                let list: Vec<String> = by.iter().map(|(c, n)| format!("{c} {n}")).collect();
+                println!("           {}", list.join(", "));
+                let mut projects: Vec<(&String, &usize)> = u.by_project.iter().collect();
+                projects.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
+                let list: Vec<String> = projects.iter().map(|(p, n)| format!("{p} {n}")).collect();
+                println!("           in: {}", list.join(", "));
+                for e in &u.examples {
+                    println!(
+                        "           e.g. {}",
+                        e.chars().take(100).collect::<String>()
+                    );
+                }
+            }
+            match &r.hook {
+                Some(h) => {
+                    println!(
+                        "yuzu hook: {} asks, {} denies since {} ({})",
+                        h.asks,
+                        h.denies,
+                        &r.since[..10],
+                        h.log
+                    );
+                    for e in &h.recent {
+                        println!(
+                            "  {}  {:<4}  {}",
+                            &e.at[..16],
+                            e.decision,
+                            e.command.chars().take(80).collect::<String>()
+                        );
+                    }
+                    if !h.recent.is_empty() {
+                        println!("  Review these: any that should have run is a wrong block.");
+                    }
+                }
+                None => println!(
+                    "yuzu hook: no decisions logged (the hook isn't installed, or it hasn't asked yet)."
+                ),
+            }
+        }
+    }
+    exit::OK
+}
+
+/// `14d`, `24h`, `90m`, or seconds.
+fn parse_age(s: &str) -> Result<u64, String> {
+    let s = s.trim();
+    let (num, unit) = s
+        .find(|c: char| !c.is_ascii_digit())
+        .map_or((s, ""), |i| (&s[..i], &s[i..]));
+    let n: u64 = num
+        .parse()
+        .map_err(|_| format!("{s:?} isn't an age: write 14d, 24h, or 90m"))?;
+    match unit {
+        "" | "s" => Ok(n),
+        "m" => Ok(n * 60),
+        "h" => Ok(n * 3600),
+        "d" => Ok(n * 86_400),
+        _ => Err(format!("{s:?} isn't an age: write 14d, 24h, or 90m")),
     }
 }
 
@@ -539,6 +713,7 @@ fn run_claude_hook(mut ctx: Ctx) -> u8 {
         .read_to_string(&mut stdin)
         .map_err(|e| e.to_string())
         .and_then(|_| serde_json::from_str(&stdin).map_err(|e| e.to_string()));
+    let mut logged_command = String::new();
     let (decision, reason) = match input {
         Err(e) => (
             Decision::Ask,
@@ -552,6 +727,7 @@ fn run_claude_hook(mut ctx: Ctx) -> u8 {
             if let Some(cwd) = input.cwd {
                 ctx.cwd = cwd;
             }
+            command.clone_into(&mut logged_command);
             let c = decide(&ctx, &[command.to_owned()]);
             (c.decision, c.message.unwrap_or_default())
         }
@@ -561,6 +737,17 @@ fn run_claude_hook(mut ctx: Ctx) -> u8 {
         Decision::Ask => "ask",
         Decision::Deny => "deny",
     };
+    // Asks and denies are kept, so the trial can count wrong blocks.
+    sessions::log_decision(
+        &ctx,
+        &sessions::Logged {
+            at: mochi_common::time::now_rfc3339(),
+            decision: permission_decision.to_owned(),
+            command: logged_command,
+            cwd: ctx.cwd.display().to_string(),
+            reason: reason.lines().next().unwrap_or("").to_owned(),
+        },
+    );
     print_json(&HookOutput {
         hook_specific_output: HookDecision {
             hook_event_name: "PreToolUse",

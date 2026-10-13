@@ -53,6 +53,8 @@ fn yuzu(home: &Path) -> Command {
         .env_remove("KUBECONFIG")
         .env_remove("YUZU_CONFIG")
         .env_remove("XDG_CONFIG_HOME")
+        .env_remove("XDG_STATE_HOME")
+        .env_remove("YUZU_NO_LOG")
         .env_remove("AWS_PROFILE")
         .env_remove("AWS_DEFAULT_PROFILE");
     cmd
@@ -354,4 +356,46 @@ fn wait_returns_when_met_and_exits_1_at_the_timeout() {
         .assert()
         .code(2)
         .stderr(predicate::str::contains("write 90s, 10m, or 1h"));
+}
+
+#[test]
+fn sessions_counts_calls_and_the_hooks_decisions() {
+    let h = home(Some(ENVIRONMENTS));
+    // A transcript: the agent runs matcha before the user mentions it.
+    let project = h.path().join("transcripts/-repo");
+    std::fs::create_dir_all(&project).unwrap();
+    let now = "2099-01-01T00:00:00Z";
+    let lines = [
+        serde_json::json!({"type": "user", "timestamp": now, "cwd": "/work/repo", "message": {"content": "how are forms done?"}}),
+        serde_json::json!({"type": "assistant", "timestamp": now, "cwd": "/work/repo", "message": {"content": [
+            {"type": "tool_use", "id": "a", "name": "Bash", "input": {"command": "matcha census forms --alt x"}},
+            {"type": "tool_use", "id": "b", "name": "mcp__plugin_mochi-donut_matcha__drift", "input": {}}
+        ]}}),
+    ];
+    let text: String = lines.iter().map(|l| format!("{l}\n")).collect();
+    std::fs::write(project.join("s1.jsonl"), text).unwrap();
+
+    // The hook asks about a write to the work cluster, and logs it.
+    let state = h.path().join("state");
+    let input = r#"{"tool_name":"Bash","tool_input":{"command":"kubectl delete ns x"}}"#;
+    yuzu(h.path())
+        .env("XDG_STATE_HOME", &state)
+        .args(["hook", "claude-code"])
+        .write_stdin(input)
+        .assert()
+        .success();
+
+    let mut cmd = yuzu(h.path());
+    cmd.env("XDG_STATE_HOME", &state)
+        .args(["sessions", "--since", "1d", "--dir"])
+        .arg(h.path().join("transcripts"));
+    let body = json(&mut cmd, 0);
+    let matcha = &body["tools"][0];
+    assert_eq!(matcha["tool"], "matcha");
+    assert_eq!(matcha["calls"], 2);
+    assert_eq!(matcha["unprompted_calls"], 2);
+    assert_eq!(matcha["by_command"]["census"], 1);
+    assert_eq!(matcha["by_command"]["mcp:drift"], 1);
+    assert_eq!(body["hook"]["asks"], 1);
+    assert_eq!(body["hook"]["recent"][0]["command"], "kubectl delete ns x");
 }
