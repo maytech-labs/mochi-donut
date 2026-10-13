@@ -11,6 +11,7 @@ mod proc;
 mod shell;
 mod status;
 mod targets;
+mod wait;
 mod whoami;
 
 use std::io::Read;
@@ -77,10 +78,53 @@ enum Command {
         #[arg(long)]
         verify: bool,
     },
+    /// Wait until something is true: CI finishes, a port opens, a URL
+    /// answers, a file appears, or a command succeeds.
+    Wait {
+        #[command(subcommand)]
+        condition: WaitCondition,
+        /// Give up after this long: 90s, 10m, 1h.
+        #[arg(long, global = true, default_value = "10m", value_name = "DURATION")]
+        timeout: String,
+        /// How often to look. Default: 5s, 10s for url, 30s for ci.
+        #[arg(long, global = true, value_name = "DURATION")]
+        every: Option<String>,
+        /// Wait until it's no longer true (the port closes, the file goes).
+        #[arg(long, global = true)]
+        not: bool,
+    },
     /// Serve status, check, and probe as MCP tools on stdin and stdout.
     Mcp,
     /// Print a short guide to yuzu, written for AI agents.
     AgentGuide,
+}
+
+#[derive(Debug, Subcommand)]
+enum WaitCondition {
+    /// Until CI for a PR number, branch, tag, or commit (default HEAD)
+    /// finishes. Exit 0 if it passed, 1 if it failed.
+    Ci {
+        /// A PR number, or a commit, branch, or tag.
+        what: Option<String>,
+        /// host/owner/repo. Default: from this repo's remote.
+        #[arg(long, value_name = "HOST/OWNER/REPO")]
+        repo: Option<String>,
+    },
+    /// Until host:port accepts a TCP connection.
+    Port { address: String },
+    /// Until the URL answers 2xx or 3xx, or --status.
+    Url {
+        url: String,
+        #[arg(long)]
+        status: Option<u16>,
+    },
+    /// Until the path exists.
+    File { path: String },
+    /// Until the command exits 0. One argument runs through `sh -c`.
+    Cmd {
+        #[arg(last = true, required = true)]
+        command: Vec<String>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -102,6 +146,12 @@ fn main() -> ExitCode {
         Command::Status => run_status(&ctx, format),
         Command::Mcp => mcp_tools::serve(),
         Command::Whoami { verify } => run_whoami(&ctx, verify, format),
+        Command::Wait {
+            condition,
+            timeout,
+            every,
+            not,
+        } => run_wait(&ctx, condition, &timeout, every.as_deref(), not, format),
         Command::Check { command } => run_check(&ctx, &command, format),
         Command::Hook {
             agent: HookAgent::ClaudeCode,
@@ -113,6 +163,84 @@ fn main() -> ExitCode {
         } => run_probe(&ctx, &url, browser.as_deref(), timeout, format),
     };
     ExitCode::from(code)
+}
+
+fn run_wait(
+    ctx: &Ctx,
+    condition: WaitCondition,
+    timeout: &str,
+    every: Option<&str>,
+    not: bool,
+    format: Format,
+) -> u8 {
+    let cond = match condition {
+        WaitCondition::Ci { what, repo } => wait::Condition::Ci { what, repo },
+        WaitCondition::Port { address } => wait::Condition::Port(address),
+        WaitCondition::Url { url, status } => wait::Condition::Url { url, status },
+        WaitCondition::File { path } => wait::Condition::File(ctx.path(&path)),
+        WaitCondition::Cmd { command } => wait::Condition::Cmd(command),
+    };
+    let durations = wait::parse_duration(timeout).and_then(|t| {
+        every
+            .map(wait::parse_duration)
+            .transpose()
+            .map(|e| (t, e.unwrap_or_else(|| cond.default_every())))
+    });
+    let (timeout, every) = match durations {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("{e}");
+            return exit::USAGE;
+        }
+    };
+    eprintln!(
+        "Waiting up to {} for {}{}.",
+        clock(timeout),
+        if not { "not: " } else { "" },
+        cond.describe()
+    );
+    let outcome = wait::wait(&cond, not, timeout, every, ctx, |seen, at| {
+        eprintln!("  [{}] {}", clock(at), seen.detail);
+    });
+    match format {
+        Format::Json => print_json(&outcome),
+        Format::Text => {
+            let verdict = if outcome.met {
+                "Done"
+            } else if outcome.timed_out {
+                "Timed out"
+            } else {
+                "Failed"
+            };
+            println!(
+                "{verdict} after {} ({} looks): {}",
+                clock(std::time::Duration::from_secs(outcome.elapsed_secs)),
+                outcome.looks,
+                outcome.last.detail
+            );
+            for f in &outcome.last.failed {
+                println!("  {f}");
+            }
+            if outcome.timed_out {
+                println!("  Still not done. Wait longer with --timeout, or check why it's stuck.");
+            }
+        }
+    }
+    if outcome.met {
+        exit::OK
+    } else {
+        exit::CHECK_FAILED
+    }
+}
+
+/// `4m12s`, `35s`, `1h2m`.
+fn clock(d: std::time::Duration) -> String {
+    let s = d.as_secs();
+    match (s / 3600, s % 3600 / 60, s % 60) {
+        (0, 0, s) => format!("{s}s"),
+        (0, m, s) => format!("{m}m{s:02}s"),
+        (h, m, _) => format!("{h}h{m:02}m"),
+    }
 }
 
 fn run_whoami(ctx: &Ctx, verify: bool, format: Format) -> u8 {

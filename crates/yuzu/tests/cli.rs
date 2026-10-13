@@ -325,3 +325,33 @@ fn whoami_names_a_token_that_hides_the_stored_login() {
     assert_eq!(body["verified"], false);
     assert!(github.get("verified").is_none());
 }
+
+#[test]
+fn wait_returns_when_met_and_exits_1_at_the_timeout() {
+    let h = home(None);
+    let ready = h.path().join("ready");
+    std::fs::write(&ready, "").unwrap();
+    let body = json(
+        yuzu(h.path())
+            .args(["wait", "--timeout", "5s", "file"])
+            .arg(&ready),
+        0,
+    );
+    assert_eq!(body["met"], true);
+    assert_eq!(body["looks"], 1);
+
+    let gone = h.path().join("never");
+    let body = json(
+        yuzu(h.path())
+            .args(["wait", "--timeout", "1s", "--every", "1s", "file"])
+            .arg(&gone),
+        1,
+    );
+    assert_eq!(body["timed_out"], true);
+
+    yuzu(h.path())
+        .args(["wait", "--timeout", "soon", "file", "x"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("write 90s, 10m, or 1h"));
+}

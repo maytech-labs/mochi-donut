@@ -19,6 +19,41 @@ fn check(v: &Value) -> Result<Vec<String>, String> {
     ])
 }
 
+fn wait(v: &Value) -> Result<Vec<String>, String> {
+    let a = Args(v);
+    let mut argv = vec![
+        "wait".to_owned(),
+        "--timeout".to_owned(),
+        a.str("timeout")?.unwrap_or_else(|| "5m".into()),
+    ];
+    a.push_opt(&mut argv, "every", "--every")?;
+    if a.flag("not") {
+        argv.push("--not".into());
+    }
+    let what = a.required("condition")?;
+    let target = a.str("target")?;
+    match what.as_str() {
+        "ci" => {
+            argv.push("ci".into());
+            argv.extend(target);
+        }
+        "port" | "url" | "file" => {
+            argv.push(what);
+            argv.push(target.ok_or("`target` is required: host:port, a URL, or a path")?);
+        }
+        "cmd" => {
+            argv.extend(["cmd".into(), "--".into()]);
+            argv.push(target.ok_or("`target` is required: the command line")?);
+        }
+        other => {
+            return Err(format!(
+                "`condition` is ci, port, url, file, or cmd, not {other:?}"
+            ));
+        }
+    }
+    Ok(argv)
+}
+
 fn whoami(v: &Value) -> Result<Vec<String>, String> {
     let mut argv = vec!["whoami".to_owned()];
     if Args(v).flag("verify") {
@@ -55,6 +90,22 @@ pub fn tools() -> Vec<Tool> {
                 "required": ["command"],
             }),
             args: check,
+        },
+        Tool {
+            name: "wait",
+            description: "Use instead of a sleep or poll loop whenever you're waiting on something: CI for a PR or commit to finish (the result says pass or fail), a port to open, a URL to answer, a file to appear, or a command to succeed. Returns when it's done, failed, or timed out, with what it last saw.",
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "condition": { "type": "string", "enum": ["ci", "port", "url", "file", "cmd"] },
+                    "target": { "type": "string", "description": "ci: a PR number or ref (default HEAD); port: host:port; url: the URL; file: a path; cmd: a shell command line." },
+                    "timeout": { "type": "string", "description": "Give up after this long: 90s, 10m (default 5m; keep it under your tool-call timeout)." },
+                    "every": { "type": "string", "description": "How often to look." },
+                    "not": { "type": "boolean", "description": "Wait until it's no longer true." },
+                },
+                "required": ["condition"],
+            }),
+            args: wait,
         },
         Tool {
             name: "whoami",
@@ -113,6 +164,19 @@ mod tests {
         assert_eq!(
             run("check", json!({})).unwrap_err(),
             "`command` is required"
+        );
+        assert_eq!(
+            run("wait", json!({"condition": "ci", "target": "2"})).unwrap(),
+            ["wait", "--timeout", "5m", "ci", "2"]
+        );
+        assert_eq!(
+            run("wait", json!({"condition": "cmd", "target": "kubectl rollout status deploy/api", "timeout": "10m"})).unwrap(),
+            ["wait", "--timeout", "10m", "cmd", "--", "kubectl rollout status deploy/api"]
+        );
+        assert!(
+            run("wait", json!({"condition": "port"}))
+                .unwrap_err()
+                .contains("host:port")
         );
     }
 }
