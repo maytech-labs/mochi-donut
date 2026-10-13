@@ -817,10 +817,18 @@ fn infra(args: &[String], ctx: &Ctx, command: String) -> Option<Target> {
         || (matches!(sub, "state" | "workspace" | "stack" | "config")
             && matches!(pos.get(1).copied(), None | Some("list" | "ls" | "show" | "select" | "get" | "output")));
     let dir = normalize(&dir);
-    let shown = match dir.strip_prefix(&ctx.home) {
-        Ok(rest) if !ctx.home.as_os_str().is_empty() => format!("~/{}", rest.display()),
-        _ => dir.display().to_string(),
-    };
+    // The working directory comes back resolved (`/private/var/...` on
+    // macOS) while HOME may not be, so try both spellings of home.
+    let homes = [Some(ctx.home.clone()), ctx.home.canonicalize().ok()];
+    let shown = homes
+        .iter()
+        .flatten()
+        .filter(|h| !h.as_os_str().is_empty())
+        .find_map(|h| dir.strip_prefix(h).ok())
+        .map_or_else(
+            || dir.display().to_string(),
+            |rest| format!("~/{}", rest.display()),
+        );
     Some(Target {
         kind: Kind::InfraDir,
         name: shown.trim_end_matches('/').to_owned(),

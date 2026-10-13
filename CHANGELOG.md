@@ -29,6 +29,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Changed
 
+- `yuzu check` matches `infra_dirs` like `~/infra/*` when the home directory's path involves a symlink (`/var` and `/private/var` on macOS); before, it asked.
+- Testing guidelines in AGENTS.md: unit tests drive the code, integration tests pin the contract and change only with it.
 - `census` leaves out lockfiles and minified bundles, says how many matching files are tests (`--no-tests` drops them), and flags a pattern narrower than its word.
 - `recipe --like` keeps files most similar commits changed, matches words in changed paths too, groups sibling files, and says when the sample is small. `recipe --check` says when it can't judge.
 - `drift` checks naming affixes (`_cents`, `is_`) and has fewer false alarms on doc vocabulary, labels, and import paths.
