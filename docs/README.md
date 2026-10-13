@@ -5,7 +5,7 @@
 | [design.md](design.md) | The design across the tools: why they exist, how they're split, how agents find them, rollout, and risks |
 | [matcha/](matcha/README.md) | What the repo knows: `census`, `recipe`, `drift`, `ledger`, `eval` |
 | [yuzu/](yuzu/README.md) | What the environment is: `status`, `check`, `probe`, `whoami`, `wait`, `sessions` |
-| [ube/](ube/README.md) | Proposed: the change in hand: `plan`, `run`, `done`, `mutate` |
+| [ube/](ube/README.md) | The change in hand: `plan`, `run`, `done`, `mutate` |
 | [taro/](taro/README.md) | Proposed: the forge and the team: `ready`, `reviews`, `owners`, `flaky`, `cleanup` |
 | [decisions/](decisions/) | Every decision, as an ADR, never rewritten. Copy [0000-template.md](decisions/0000-template.md) to add one. |
 
@@ -50,4 +50,5 @@ Proposed tools have `README.md`, `design.md`, and a planned `usage.md`; the rest
 - [0025 yuzu sessions: tool use from agent transcripts, and a log of the hook's asks and denies](decisions/0025-yuzu-sessions.md)
 - [0026 Two kinds of test: unit tests drive the code, integration tests pin the contract](decisions/0026-two-kinds-of-test.md)
 - [0027 A docs folder per tool, with the same pages in each](decisions/0027-docs-per-tool.md)
-- [0028 Propose ube (the change in hand) and taro (the forge and the team)](decisions/0028-propose-ube-and-taro.md) (proposed)
+- [0028 Propose ube (the change in hand) and taro (the forge and the team)](decisions/0028-propose-ube-and-taro.md) (amended)
+- [0029 ube: checks by package from what the repo declares, results by tree, line-based mutations](decisions/0029-ube.md)

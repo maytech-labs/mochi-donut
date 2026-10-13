@@ -1,9 +1,9 @@
 # ube design
 
 <!-- matcha: links-only -->
-<!-- A proposal: it names commands and files that don't exist yet. -->
+<!-- Its examples name files in other repos. -->
 
-- **Status:** Proposed. Nothing here is built. See [ADR 0028](../decisions/0028-propose-ube-and-taro.md).
+- **Status:** Built (2026-10-13). Proposed in [ADR 0028](../decisions/0028-propose-ube-and-taro.md); how it was built, and where it differs from this design, is in [ADR 0029](../decisions/0029-ube.md).
 - **Date:** 2026-10-13
 
 ## Summary
@@ -86,6 +86,17 @@ Exit 0 when all hold, 1 with the list of what doesn't.
 ### Data
 
 Results go in `.ube/` (self-ignoring, like `.matcha/`): per tree hash, the checks run, their outcome, and parsed failures. Nothing leaves the machine.
+
+## Status (2026-10-13)
+
+All four commands are built. Differences from the design above:
+
+- **No `.ube.toml`.** Checks come only from what the repo declares; nothing so far needed more.
+- **Selection is by package**, not by individual test file: the package that holds a file, plus every Cargo package that depends on it through a path dependency. Picking test files from history (recipe's statistics) isn't built.
+- **`mutate` uses its own line-based mutations** (comparison and boolean operators, arithmetic, `true`/`false`), not cargo-mutants or Stryker.
+- **The Stop hook is built but not in the hooks plugin.** Whether it helps or nags is the trial's question.
+
+Tried on this repo: a one-line yuzu change plans `cargo test -p mochi-yuzu` and leaves CI's full check out, saying so; a change to `mochi-common` plans it and every package that depends on it. `ube run` took 21 s, recorded the green run as ledger evidence, and `done` then caught an edit made after it. `ube mutate` on its own `plan.rs` found a line no test proved (a check's `tests` flag), which a test now pins.
 
 ## Done when
 

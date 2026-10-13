@@ -2,7 +2,7 @@
 
 Tools that help AI coding agents work in a repo the way a careful teammate would: with evidence about how things are done here, and without touching the wrong environment.
 
-> **Status: pre-release.** matcha and yuzu are built and tested; ube and taro are proposed. Nothing is published yet; see the [roadmap](#roadmap) and the [design](docs/design.md).
+> **Status: pre-release.** matcha, yuzu, and ube are built and tested; taro is proposed. Nothing is published yet; see the [roadmap](#roadmap) and the [design](docs/design.md).
 
 Agents start every session with no memory. They guess the house style, forget the companion edits a change needs, trust docs that have drifted, and run commands against whatever cluster or account the shell happens to point at. mochi-donut answers those questions from the repo's own history and from a declaration of your environments, in a form agents can act on.
 
@@ -12,7 +12,7 @@ Like a pon de ring, it's a ring of separate pieces. Each tool is named after a m
 |---|---|---|
 | **[matcha](docs/matcha/README.md)** | The repo: its files, history, and docs | `census` (how is this usually done here?), `recipe` (what else changes with this?), `drift` (are the docs still true?), `ledger` (what did I verify, and what did I assume?), `eval` (are the answers still right?) |
 | **[yuzu](docs/yuzu/README.md)** | Your environment: clusters, accounts, hosts, browser | `status` (where am I?), `check` (what will this command touch, and is it allowed?), `probe` (does it work from where the user is?), `whoami` (which account will this act as?), `wait` (is it done yet?), `sessions` (how do agents use these tools?) |
-| **[ube](docs/ube/README.md)** (proposed) | The change in hand: which checks apply, and whether they passed on this code | `plan`, `run`, `done`, `mutate` |
+| **[ube](docs/ube/README.md)** | The change in hand: which checks apply, and whether they passed on this code | `plan`, `run`, `done`, `mutate` |
 | **[taro](docs/taro/README.md)** (proposed) | The forge and the team: reviews, checks, owners, branches | `ready`, `reviews`, `owners`, `flaky`, `cleanup` |
 
 Every command has `--json` output and stable exit codes, and each tool prints a guide written for agents:
@@ -43,10 +43,10 @@ make uninstall
 With Cargo:
 
 ```sh
-cargo install --git https://github.com/trammel-may/mochi-donut mochi-matcha mochi-yuzu
+cargo install --git https://github.com/trammel-may/mochi-donut mochi-matcha mochi-yuzu mochi-ube
 ```
 
-Pick one way; two installs means two copies on your `PATH`. The packages are named `mochi-matcha` and `mochi-yuzu`; the commands they install are `matcha` and `yuzu`.
+Pick one way; two installs means two copies on your `PATH`. The packages are named `mochi-matcha`, `mochi-yuzu`, and `mochi-ube`; the commands they install are `matcha`, `yuzu`, and `ube`.
 
 Note: Homebrew has an unrelated `matcha` (an RSS digest tool). The formula conflicts with it, and if you install another way, whichever comes first on your `PATH` wins.
 
@@ -84,7 +84,7 @@ In Claude Code, this repo is a plugin marketplace with two plugins:
 /plugin install mochi-donut-hooks@mochi-donut   # yuzu checks every Bash command; matcha records evidence
 ```
 
-Both need `matcha` and `yuzu` on your `PATH`. The hooks plugin is separate because it changes how commands get approved: install it on purpose. You can add the same hooks by hand instead ([ADR 0014](docs/decisions/0014-claude-code-hook.md), [ADR 0017](docs/decisions/0017-ledger.md)).
+Both need the binaries on your `PATH`. The hooks plugin is separate because it changes how commands get approved: install it on purpose. You can add the same hooks by hand instead ([ADR 0014](docs/decisions/0014-claude-code-hook.md), [ADR 0017](docs/decisions/0017-ledger.md)).
 
 Other agents with MCP can run `matcha mcp` and `yuzu mcp` as stdio servers. Any agent can learn either tool from `matcha agent-guide` or `yuzu agent-guide`.
 
@@ -97,6 +97,7 @@ Before trusting a doc                             matcha drift
 When you check or assume a fact                   matcha ledger add verified|assumed "<claim>"
 Before committing                                 matcha recipe --check; matcha ledger check --diff
 When it works for you but not the user            yuzu probe <url>
+To test a change, and before saying it's done       ube run; ube done
 Before pushing, or when auth fails                yuzu whoami
 Instead of sleep or a poll loop                   yuzu wait ci|port|url|file|cmd ...
 ```
@@ -108,6 +109,7 @@ Nothing leaves it: no telemetry, and the only network calls are the ones a comma
 | File | Written by | Holds |
 |---|---|---|
 | `.matcha/` in a repo | `matcha ledger` and its hook | Claims, and excerpts of command output with secret-looking values redacted. It ignores itself, so it's never committed. |
+| `.ube/` in a repo | `ube run` | Each check's result, keyed by the exact tree it ran on. It ignores itself. |
 | `~/.local/state/yuzu/decisions.jsonl` | yuzu's hook | Each command it asked about or denied, for review. `YUZU_NO_LOG=1` turns it off. |
 
 `yuzu sessions` reads Claude Code's own transcripts in `~/.claude*/projects`, and writes nothing.
@@ -120,7 +122,7 @@ Nothing leaves it: no telemetry, and the only network calls are the ones a comma
 4. `yuzu probe` (built, see [ADR 0018](docs/decisions/0018-yuzu-probe.md))
 5. MCP servers and a Claude Code plugin with skills and hooks (built, see [ADR 0019](docs/decisions/0019-mcp-and-plugin.md))
 6. `yuzu whoami`, `yuzu wait`, `yuzu sessions`, and `matcha eval`, from friction in real sessions (built, see ADRs [0022](docs/decisions/0022-yuzu-whoami.md) to [0025](docs/decisions/0025-yuzu-sessions.md))
-7. `ube`: the change in hand (proposed, see [its design](docs/ube/design.md) and [ADR 0028](docs/decisions/0028-propose-ube-and-taro.md))
+7. `ube`: the change in hand (built, see [its design](docs/ube/design.md) and [ADR 0029](docs/decisions/0029-ube.md))
 8. `taro`: the forge and the team (proposed, see [its design](docs/taro/design.md))
 
 Nothing is announced or published to crates.io until the first two steps prove useful ([ADR 0004](docs/decisions/0004-prove-before-announcing.md)).
