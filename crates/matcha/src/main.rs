@@ -1,6 +1,6 @@
 //! matcha: what a repo knows. Conventions (`census`), change recipes
 //! (`recipe`), doc drift (`drift`), and a verified-facts ledger (`ledger`).
-//! See docs/design.md.
+//! See docs/matcha/.
 
 mod census;
 mod drift;

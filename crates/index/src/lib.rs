@@ -1,5 +1,5 @@
 //! The local index of a repo's files and history that matcha's commands read
-//! (docs/design.md, "The index"). It asks `git` directly rather than linking a
+//! (docs/matcha/design.md, "The index"). It asks `git` directly rather than linking a
 //! git library, and builds what it needs in memory on each run
 //! (docs/decisions/0007-phase-1-index.md).
 

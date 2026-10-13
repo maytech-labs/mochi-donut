@@ -20,7 +20,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `yuzu hook claude-code`: `check` as a Claude Code `PreToolUse` hook.
 - `matcha mcp` and `yuzu mcp`: each tool's commands as MCP tools over stdio, with descriptions written as triggers.
 - A Claude Code plugin marketplace in this repo: `mochi-donut` (MCP servers and skills) and `mochi-donut-hooks` (yuzu's check and matcha's recorder).
-- Design doc and ADRs 0001–0025.
+- Design doc and ADRs 0001–0028.
 - `make install` (default `/usr/local/bin`) and a Homebrew formula (`brew install --HEAD mochi-donut` from this repo's tap).
 - `yuzu whoami`: which account gh, git, ssh, and AWS act as here, and what overrides it; `--verify` asks each service.
 - `yuzu wait`: wait for CI (GitHub), a port, a URL, a file, or a command, with a timeout and a clear exit code.
@@ -29,6 +29,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Changed
 
+- Docs are split per tool: `docs/<tool>/` holds each tool's design, usage, configuration, and agent pages; `docs/design.md` keeps the cross-tool design. ube and taro are proposed there.
 - `yuzu check` matches `infra_dirs` like `~/infra/*` when the home directory's path involves a symlink (`/var` and `/private/var` on macOS); before, it asked.
 - Testing guidelines in AGENTS.md: unit tests drive the code, integration tests pin the contract and change only with it.
 - `census` leaves out lockfiles and minified bundles, says how many matching files are tests (`--no-tests` drops them), and flags a pattern narrower than its word.

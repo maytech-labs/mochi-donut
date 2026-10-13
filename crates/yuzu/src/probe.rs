@@ -1,7 +1,7 @@
 //! `yuzu probe`: does it work from where the user is? Loads a URL from the
 //! terminal (curl) and from the user's browser (headless, with an empty
 //! temporary profile), and maps the difference to a likely cause
-//! (docs/design.md, "yuzu probe"; docs/decisions/0018-yuzu-probe.md).
+//! (docs/yuzu/design.md, "yuzu probe"; docs/decisions/0018-yuzu-probe.md).
 
 use std::net::{IpAddr, ToSocketAddrs};
 use std::path::{Path, PathBuf};

@@ -8,8 +8,8 @@ mochi-donut is a Cargo workspace of command-line tools for AI coding agents:
 
 | Crate | Package | What it is |
 |---|---|---|
-| `crates/matcha` | `mochi-matcha` | The `matcha` binary: what a repo knows (`census`, `recipe`, `drift`, `ledger`) |
-| `crates/yuzu` | `mochi-yuzu` | The `yuzu` binary: what the user's environment is (`status`, `check`, `probe`) |
+| `crates/matcha` | `mochi-matcha` | The `matcha` binary: what a repo knows (`census`, `recipe`, `drift`, `ledger`, `eval`) |
+| `crates/yuzu` | `mochi-yuzu` | The `yuzu` binary: what the user's environment is (`status`, `check`, `probe`, `whoami`, `wait`, `sessions`) |
 | `crates/index` | `mochi-index` | The local index of a repo's files and history that matcha reads |
 | `crates/common` | `mochi-common` | Output format, exit codes, `--json` conventions, times, and the MCP server layer both tools share |
 | `xtask` | (not published) | Repo automation: `cargo xtask <task>` |
@@ -17,14 +17,14 @@ mochi-donut is a Cargo workspace of command-line tools for AI coding agents:
 | `Formula/` | | The Homebrew formula; this repo is its own tap ([0011](docs/decisions/0011-homebrew-tap.md)) |
 | `plugins/`, `.claude-plugin/` | | Claude Code plugins (MCP servers, skills, hooks); this repo is their marketplace ([0019](docs/decisions/0019-mcp-and-plugin.md)) |
 
-The design is in [docs/design.md](docs/design.md). Decisions are in [docs/decisions/](docs/decisions/).
+The design across tools is in [docs/design.md](docs/design.md); each tool's design, usage, and configuration are in `docs/<tool>/` ([index](docs/README.md)). `ube` and `taro` are proposed, not built. Decisions are in [docs/decisions/](docs/decisions/).
 
 ## Working loop
 
-1. Read the part of `docs/design.md` for what you're building, and any ADRs it links.
+1. Read `docs/<tool>/design.md` for what you're building, and any ADRs it links. Cross-tool questions are in `docs/design.md`.
 2. Write the test first where practical: an integration test in `crates/<tool>/tests/` that runs the binary, then unit tests for the logic.
 3. Run `cargo xtask check` (fmt, clippy with warnings as errors, all tests). CI runs the same on Linux and macOS.
-4. Update docs in the same change: the design doc, the README's roadmap, and `CHANGELOG.md` under **Unreleased**.
+4. Update docs in the same change: the tool's `docs/<tool>/` pages (design status, usage, config), the README's roadmap, and `CHANGELOG.md` under **Unreleased**. Run `matcha drift` to catch what you missed.
 5. Record every decision you made as an ADR (below).
 
 ## Rules

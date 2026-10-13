@@ -1,7 +1,7 @@
 //! `matcha ledger`: what did I verify, and what did I assume? A per-branch
 //! record of claims, each verified (with evidence) or assumed, and a check
 //! that flags assumed claims as they're written into docs and comments
-//! (docs/design.md, "ledger"; docs/decisions/0017-ledger.md).
+//! (docs/matcha/design.md, "ledger"; docs/decisions/0017-ledger.md).
 
 use std::collections::BTreeSet;
 use std::io::Write;

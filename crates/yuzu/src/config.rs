@@ -1,5 +1,5 @@
 //! The user's declaration of which environments are whose, read from
-//! `~/.config/yuzu/environments.toml` (docs/design.md, "yuzu check").
+//! `~/.config/yuzu/environments.toml` (docs/yuzu/config.md).
 
 use std::path::{Path, PathBuf};
 

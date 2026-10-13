@@ -1,5 +1,5 @@
 //! Conventions every mochi-donut tool shares: output format, exit codes, and
-//! the shape of `--json` output (docs/design.md, "Shared conventions").
+//! the shape of `--json` output (docs/matcha/usage.md and docs/yuzu/usage.md, "exit codes").
 
 pub mod mcp;
 
@@ -85,8 +85,7 @@ pub struct NotImplemented<'a> {
 /// Reports that `tool command` isn't built yet, in the requested format, and
 /// returns the exit code to use.
 pub fn not_implemented(format: Format, tool: &str, command: &str) -> u8 {
-    let message =
-        format!("`{tool} {command}` isn't built yet. See docs/design.md for what it will do.");
+    let message = format!("`{tool} {command}` isn't built yet. See docs/ for what it will do.");
     match format {
         Format::Text => eprintln!("{message}"),
         Format::Json => print_json(&NotImplemented {

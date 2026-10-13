@@ -2,16 +2,18 @@
 
 Tools that help AI coding agents work in a repo the way a careful teammate would: with evidence about how things are done here, and without touching the wrong environment.
 
-> **Status: pre-release.** Every command in the table below is built and tested. Nothing is published yet; see the [roadmap](#roadmap) and the [design](docs/design.md).
+> **Status: pre-release.** matcha and yuzu are built and tested; ube and taro are proposed. Nothing is published yet; see the [roadmap](#roadmap) and the [design](docs/design.md).
 
 Agents start every session with no memory. They guess the house style, forget the companion edits a change needs, trust docs that have drifted, and run commands against whatever cluster or account the shell happens to point at. mochi-donut answers those questions from the repo's own history and from a declaration of your environments, in a form agents can act on.
 
-Like a pon de ring, it's a ring of separate pieces. Each tool is named after a mochi donut flavor.
+Like a pon de ring, it's a ring of separate pieces. Each tool is named after a mochi donut flavor, and each has its own docs: design, usage, configuration, and how agents use it ([docs/](docs/README.md)).
 
 | Tool | Knows about | Commands |
 |---|---|---|
-| **matcha** | The repo: its files, history, and docs | `census` (how is this usually done here?), `recipe` (what else changes with this?), `drift` (are the docs still true?), `ledger` (what did I verify, and what did I assume?), `eval` (are the answers still right?) |
-| **yuzu** | Your environment: clusters, accounts, hosts, browser | `status` (where am I?), `check` (what will this command touch, and is it allowed?), `probe` (does it work from where the user is?), `whoami` (which account will this act as?), `wait` (is it done yet?), `sessions` (how do agents use these tools?) |
+| **[matcha](docs/matcha/README.md)** | The repo: its files, history, and docs | `census` (how is this usually done here?), `recipe` (what else changes with this?), `drift` (are the docs still true?), `ledger` (what did I verify, and what did I assume?), `eval` (are the answers still right?) |
+| **[yuzu](docs/yuzu/README.md)** | Your environment: clusters, accounts, hosts, browser | `status` (where am I?), `check` (what will this command touch, and is it allowed?), `probe` (does it work from where the user is?), `whoami` (which account will this act as?), `wait` (is it done yet?), `sessions` (how do agents use these tools?) |
+| **[ube](docs/ube/README.md)** (proposed) | The change in hand: which checks apply, and whether they passed on this code | `plan`, `run`, `done`, `mutate` |
+| **[taro](docs/taro/README.md)** (proposed) | The forge and the team: reviews, checks, owners, branches | `ready`, `reviews`, `owners`, `flaky`, `cleanup` |
 
 Every command has `--json` output and stable exit codes, and each tool prints a guide written for agents:
 
@@ -118,6 +120,8 @@ Nothing leaves it: no telemetry, and the only network calls are the ones a comma
 4. `yuzu probe` (built, see [ADR 0018](docs/decisions/0018-yuzu-probe.md))
 5. MCP servers and a Claude Code plugin with skills and hooks (built, see [ADR 0019](docs/decisions/0019-mcp-and-plugin.md))
 6. `yuzu whoami`, `yuzu wait`, `yuzu sessions`, and `matcha eval`, from friction in real sessions (built, see ADRs [0022](docs/decisions/0022-yuzu-whoami.md) to [0025](docs/decisions/0025-yuzu-sessions.md))
+7. `ube`: the change in hand (proposed, see [its design](docs/ube/design.md) and [ADR 0028](docs/decisions/0028-propose-ube-and-taro.md))
+8. `taro`: the forge and the team (proposed, see [its design](docs/taro/design.md))
 
 Nothing is announced or published to crates.io until the first two steps prove useful ([ADR 0004](docs/decisions/0004-prove-before-announcing.md)).
 

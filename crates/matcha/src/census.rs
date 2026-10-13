@@ -1,6 +1,6 @@
 //! `matcha census`: how does this repo usually do X? Counts each alternative
 //! across tracked files, by language, with the most typical examples
-//! (docs/design.md, "census").
+//! (docs/matcha/design.md, "census").
 
 use std::collections::BTreeMap;
 

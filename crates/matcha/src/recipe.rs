@@ -1,5 +1,5 @@
 //! `matcha recipe`: what else usually changes when I change this? Learned from
-//! which files changed together in history (docs/design.md, "recipe").
+//! which files changed together in history (docs/matcha/design.md, "recipe").
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;

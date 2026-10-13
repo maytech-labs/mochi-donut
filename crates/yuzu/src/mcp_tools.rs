@@ -1,6 +1,6 @@
 //! yuzu's MCP tools: each maps its arguments to a yuzu command line. The
 //! hook isn't one: safety checks run as hooks, never on the agent's say-so
-//! (docs/design.md, "How agents find the tools").
+//! (docs/yuzu/agents.md).
 
 use mochi_common::mcp::{Args, Server, Tool};
 use serde_json::{Value, json};

@@ -1,6 +1,6 @@
 //! matcha's MCP tools: each maps its arguments to a matcha command line.
 //! Descriptions are triggers, written for the agent deciding what to call
-//! (docs/design.md, "How agents find the tools").
+//! (docs/matcha/agents.md).
 
 use mochi_common::mcp::{Args, Server, Tool};
 use serde_json::{Value, json};

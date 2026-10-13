@@ -1,7 +1,7 @@
 //! `matcha drift`: are the docs still true? Finds mechanical claims in
 //! Markdown (code spans naming paths, symbols, make targets, and npm scripts;
 //! links and their anchors) and checks each against the repo
-//! (docs/design.md, "drift"; docs/decisions/0015-drift-mechanical-claims.md).
+//! (docs/matcha/design.md, "drift"; docs/decisions/0015-drift-mechanical-claims.md).
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
