@@ -229,3 +229,66 @@ fn recipe_check_says_when_history_is_too_thin_to_judge() {
     let body = json(matcha(repo.path()).args(["recipe", "--check"]), 0);
     assert_eq!(body["judged"], 0);
 }
+
+/// Commits whose subjects never say "migration" but whose files do.
+fn migrations_repo() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    git(dir.path(), &["init", "-q", "-b", "main"]);
+    for (i, name) in ["ledger", "renewals", "billing"].iter().enumerate() {
+        commit(
+            dir.path(),
+            &format!("{name} core"),
+            &[
+                (
+                    &format!("db/migrations/{i}_{name}.sql"),
+                    "create table x();\n",
+                ),
+                (&format!("db/.sqlx/q{i}a.json"), "{}\n"),
+                (&format!("db/.sqlx/q{i}b.json"), "{}\n"),
+                (&format!("db/.sqlx/q{i}c.json"), "{}\n"),
+                ("docs/data-model.md", &format!("v{i}\n")),
+                (&format!("src/{name}.rs"), "\n"),
+            ],
+        );
+    }
+    commit(dir.path(), "tidy readme", &[("README.md", "hi\n")]);
+    dir
+}
+
+#[test]
+fn recipe_like_matches_changed_paths_and_keeps_what_most_share() {
+    let repo = migrations_repo();
+    let body = json(
+        matcha(repo.path()).args(["recipe", "--like", "migration"]),
+        0,
+    );
+    assert_eq!(body["similar"].as_array().unwrap().len(), 3);
+    let paths: Vec<&str> = body["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["path"].as_str().unwrap())
+        .collect();
+    assert!(paths.contains(&"db/migrations/*.sql"), "{paths:?}");
+    assert!(paths.contains(&"docs/data-model.md"), "{paths:?}");
+    assert!(!paths.contains(&"README.md"), "{paths:?}");
+    // No single migration file is in most of them.
+    assert!(
+        !paths.iter().any(|p| p.ends_with("0_ledger.sql")),
+        "{paths:?}"
+    );
+}
+
+#[test]
+fn recipe_like_groups_sibling_files_and_flags_a_small_sample() {
+    let repo = migrations_repo();
+    matcha(repo.path())
+        .args(["recipe", "--like", "ledger"])
+        .assert()
+        .code(0)
+        .stdout(predicate::str::contains("Based on 1 similar change:"))
+        .stdout(predicate::str::contains("db/.sqlx/*.json  (3 files)"))
+        .stdout(predicate::str::contains(
+            "treat this as a hint, not a recipe",
+        ));
+}

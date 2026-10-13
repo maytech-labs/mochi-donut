@@ -257,3 +257,30 @@ fn a_corrupt_ledger_is_an_error_not_an_empty_one() {
         .code(2)
         .stderr(predicate::str::contains(":2 isn't a valid ledger line"));
 }
+
+#[test]
+fn check_catches_paraphrases_but_not_paragraphs_on_the_topic() {
+    let repo = repo();
+    matcha(repo.path())
+        .args([
+            "ledger",
+            "add",
+            "assumed",
+            "Chrome's Local Network permission resets on every update",
+        ])
+        .assert()
+        .success();
+    std::fs::write(
+        repo.path().join("docs/test-data.md"),
+        "# Notes\n\nUpdates to Chrome can reset the permission.\n\nThe probe's facts give exactly the Local Network permission, with Chrome's update named, from the session on that day. It's a unit test.\n",
+    )
+    .unwrap();
+    let body = json(matcha(repo.path()).args(["ledger", "check", "--diff"]), 1);
+    let flagged = body["flagged"].as_array().unwrap();
+    assert_eq!(flagged.len(), 1, "{body}");
+    assert_eq!(flagged[0]["line"], 3);
+    assert_eq!(
+        flagged[0]["text"],
+        "Updates to Chrome can reset the permission."
+    );
+}

@@ -245,3 +245,49 @@ fn suggest_proposes_comments_with_evidence() {
     );
     assert_eq!(s["holds_now"], true);
 }
+
+#[test]
+fn naming_affixes_are_checked_against_identifiers() {
+    // backend/src/money.rs has round_half_even; nothing ends in _bps.
+    let repo = repo("# Naming\n\nFunctions that round start with `round_`. Rates end in `_bps`.\n");
+    let body = json(matcha(repo.path()).arg("drift"), 1);
+    let failing = body["failing"].as_array().unwrap();
+    assert_eq!(failing.len(), 1, "{body}");
+    assert_eq!(failing[0]["claim"], "_bps");
+    assert!(
+        failing[0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("ends with `_bps`")
+    );
+}
+
+#[test]
+fn doc_vocabulary_isnt_a_missing_type_but_an_unused_one_is() {
+    let repo = repo(
+        "# Status\n\nADRs start as `Proposed`. Loading uses `Suspense`. Docs-only commits start with `Docs:`.\n",
+    );
+    std::fs::write(
+        repo.path().join("docs/template.md"),
+        "# ADR\n\nStatus: Proposed\n",
+    )
+    .unwrap();
+    git(repo.path(), &["add", "-A"]);
+    git(repo.path(), &["commit", "-q", "-m", "template"]);
+    let body = json(matcha(repo.path()).arg("drift"), 1);
+    let claims: Vec<&str> = body["failing"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["claim"].as_str().unwrap())
+        .collect();
+    assert_eq!(claims, ["Suspense"], "{body}");
+}
+
+#[test]
+fn import_paths_and_footnotes_arent_broken_links() {
+    let repo = repo(
+        "# Imports\n\nImport from `../../lib` before local files.[^1]\n\n[^1]: To keep groups apart.\n",
+    );
+    json(matcha(repo.path()).arg("drift"), 0);
+}
