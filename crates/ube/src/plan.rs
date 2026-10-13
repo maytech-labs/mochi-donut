@@ -54,6 +54,7 @@ pub struct Plan {
 pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> Plan {
     let mut checks: Vec<Check> = Vec::new();
     let mut unmatched = Vec::new();
+    let mut docs: Vec<String> = Vec::new();
     let add = |checks: &mut Vec<Check>, c: Check| {
         if !checks
             .iter()
@@ -183,17 +184,9 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
                 matched = true;
             }
 
-            // Docs: matcha drift, if it's installed.
+            // Docs: one matcha drift run for all of them, added below.
             if (name.ends_with(".md") || name.ends_with(".mdx")) && matcha {
-                add(
-                    &mut checks,
-                    Check {
-                        command: format!("matcha drift --in {file}"),
-                        dir: String::new(),
-                        reason: format!("{file} is a doc"),
-                        tests: false,
-                    },
-                );
+                docs.push(file.clone());
                 matched = true;
             }
 
@@ -201,6 +194,23 @@ pub fn plan(project: &Project, changed: &[String], all: bool, matcha: bool) -> P
                 unmatched.push(file.clone());
             }
         }
+    }
+
+    if !docs.is_empty() {
+        let ins: Vec<String> = docs.iter().map(|d| format!("--in {d}")).collect();
+        let reason = match docs.as_slice() {
+            [one] => format!("{one} is a doc"),
+            many => format!("{} docs changed", many.len()),
+        };
+        add(
+            &mut checks,
+            Check {
+                command: format!("matcha drift {}", ins.join(" ")),
+                dir: String::new(),
+                reason,
+                tests: false,
+            },
+        );
     }
 
     // A workspace-wide test covers each package's.
@@ -454,6 +464,14 @@ mod tests {
     fn docs_go_to_drift_when_matcha_is_installed() {
         let p = plan(&project(), &["docs/a.md".into()], false, true);
         assert_eq!(commands(&p), ["matcha drift --in docs/a.md"]);
+        let p = plan(
+            &project(),
+            &["docs/a.md".into(), "README.md".into()],
+            false,
+            true,
+        );
+        assert_eq!(commands(&p), ["matcha drift --in docs/a.md --in README.md"]);
+        assert_eq!(p.checks[0].reason, "2 docs changed");
         let p = plan(&project(), &["docs/a.md".into()], false, false);
         assert!(p.full);
     }
