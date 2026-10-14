@@ -56,3 +56,4 @@ taro has no `config.md`: it has nothing to configure.
 - [0031 ube measures a branch from where it started, and plans the Rust lints the repo runs](decisions/0031-ube-fixes.md)
 - [0032 taro takes required checks from isRequired, and blocks when GitHub does](decisions/0032-taro-fixes.md)
 - [0033 ube reads CI by job and directory, measured by replaying merged changes](decisions/0033-ube-ci-steps-and-replay.md)
+- [0035 Merge pull requests when CI passes](decisions/0035-merge-on-green.md)

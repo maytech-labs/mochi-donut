@@ -33,6 +33,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Changed
 
+- Pull requests from the owner and Dependabot merge by rebase when CI passes on a branch that's up to date with `main`; a draft stays open.
 - `ube` measures a branch from where it left the default branch, so committed work still needs proof, and `--base` uses the merge-base. It plans `cargo fmt --check` and clippy when the repo runs them, follows `workspace = true` path dependencies, and `--rerun-failed` works after a fix.
 - `ube` runs CI's checks in each step's `working-directory`, counts coverage and `format:check` scripts as checks and Playwright installs as setup, runs a build before the checks that read it, plans the scripts CI runs in an npm package, and tests a Cargo workspace for changes to its `.sqlx/`, `migrations/`, and lint config.
 - `taro ready` takes required checks from GitHub's `isRequired`, so failing required checks block even without admin rights; it blocks when the base requires an up-to-date branch, and when GitHub says blocked for a reason taro can't read. `taro flaky` no longer counts cancels or reruns of green runs, and `taro cleanup` keeps branches checked out in a worktree.
