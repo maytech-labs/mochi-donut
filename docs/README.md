@@ -56,6 +56,7 @@ taro has no `config.md`: it has nothing to configure.
 - [0031 ube measures a branch from where it started, and plans the Rust lints the repo runs](decisions/0031-ube-fixes.md)
 - [0032 taro takes required checks from isRequired, and blocks when GitHub does](decisions/0032-taro-fixes.md)
 - [0033 ube reads CI by job and directory, measured by replaying merged changes](decisions/0033-ube-ci-steps-and-replay.md)
+- [0034 taro counts every check when the rules require none](decisions/0034-taro-no-required-checks.md)
 - [0035 Merge pull requests when CI passes](decisions/0035-merge-on-green.md)
 - [0036 yuzu asks before anything changes its own config](decisions/0036-yuzu-guards-its-config.md)
 - [0037 `yuzu env add` declares a target, and asks name it](decisions/0037-yuzu-env-add.md)

@@ -1,6 +1,6 @@
 # 0032. taro takes required checks from isRequired, and blocks when GitHub does
 
-- **Status:** Accepted
+- **Status:** Accepted; rules that require no check changed in [0034](0034-taro-no-required-checks.md)
 - **Date:** 2026-10-13
 
 ## Context

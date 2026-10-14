@@ -24,7 +24,7 @@ Each item is `ok`, `warn`, `BLOCK`, or unknown, with what to do:
 | `state`, `draft` | The PR is closed, merged, or a draft |
 | `conflicts` | It conflicts with its base |
 | `behind` | The base requires branches to be up to date, and this one isn't. The fix is `gh pr update-branch`. |
-| `checks` | A required check failed, is still running, or wasn't reported. GitHub says which reported checks are required (`isRequired`); rulesets and branch protection add ones that haven't reported. When it can't be told, every check counts, and it says so. |
+| `checks` | A required check failed, is still running, or wasn't reported. GitHub says which reported checks are required (`isRequired`); rulesets and branch protection add ones that haven't reported. When it can't be told, or the rules require none, every check counts, and it says so. An optional check that failed or is still running warns. |
 | `reviews` | Changes were requested, or an approval is required |
 | `threads` | A review thread is unresolved |
 | `changelog`, `adr`, `title` | At least 90% of the last 30 merged PRs (and at least 10 of them) changed a changelog, an ADR, or had a Conventional Commits title, and this one doesn't. From 60%, it warns. |
