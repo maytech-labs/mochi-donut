@@ -220,6 +220,7 @@ pub fn ready(f: &Facts) -> Vec<Item> {
 }
 
 fn checks_item(rollup: &[Value], required: Option<&[String]>) -> Item {
+    let known = required.is_some();
     let mut failed = Vec::new();
     let mut pending = Vec::new();
     let mut names = Vec::new();
@@ -260,14 +261,20 @@ fn checks_item(rollup: &[Value], required: Option<&[String]>) -> Item {
         .filter(|r| !names.contains(r))
         .cloned()
         .collect();
+    // Rules that require nothing say nothing about which checks matter, so
+    // then every check counts, as when the rules can't be read. Checks are
+    // optional only beside ones the rules require.
+    let required = required.filter(|r| !r.is_empty());
     let counts = |n: &str| required.is_none_or(|r| r.iter().any(|x| x == n));
     let blocking_failed: Vec<&(String, String)> =
         failed.iter().filter(|(n, _)| counts(n)).collect();
     let blocking_pending: Vec<&String> = pending.iter().filter(|n| counts(n)).collect();
-    let scope = if required.is_some() {
-        ""
-    } else {
-        " The required checks couldn't be read (the forge's rules API needs admin rights or a paid plan), so every check counts."
+    let scope = match (required, known) {
+        (Some(_), _) => "",
+        (None, true) => " The branch's rules require no check, so every check counts.",
+        (None, false) => {
+            " The required checks couldn't be read (the forge's rules API needs admin rights or a paid plan), so every check counts."
+        }
     };
     if !blocking_failed.is_empty() {
         let list: Vec<String> = blocking_failed
@@ -304,19 +311,20 @@ fn checks_item(rollup: &[Value], required: Option<&[String]>) -> Item {
             Some("yuzu wait ci <pr> waits for them".into()),
         );
     }
-    if !failed.is_empty() {
+    if !failed.is_empty() || !pending.is_empty() {
+        let mut parts = Vec::new();
+        if !failed.is_empty() {
+            let f: Vec<&str> = failed.iter().map(|(n, _)| n.as_str()).collect();
+            parts.push(format!("failed: {}", f.join(", ")));
+        }
+        if !pending.is_empty() {
+            parts.push(format!("still running: {}", pending.join(", ")));
+        }
         return item(
             "checks",
             State::Warn,
-            format!(
-                "Optional checks failed: {}.",
-                failed
-                    .iter()
-                    .map(|(n, _)| n.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            None,
+            format!("Optional checks {}.", parts.join("; ")),
+            (!pending.is_empty()).then(|| "yuzu wait ci <pr> waits for them".to_owned()),
         );
     }
     if names.is_empty() {
@@ -554,6 +562,19 @@ mod tests {
         let i = checks_item(&rollup, None);
         assert_eq!(i.state, State::Block);
         assert!(i.detail.contains("every check counts"));
+        // Rules that require nothing: every check counts, so a running
+        // check blocks instead of passing.
+        let i = checks_item(&rollup, Some(&[]));
+        assert_eq!(i.state, State::Block);
+        assert!(i.detail.contains("require no check"), "{}", i.detail);
+        // An optional check still running warns; it never reads as passed.
+        let running = [
+            json!({"__typename": "CheckRun", "name": "linux", "status": "COMPLETED", "conclusion": "SUCCESS"}),
+            json!({"__typename": "CheckRun", "name": "macos", "status": "IN_PROGRESS", "conclusion": ""}),
+        ];
+        let i = checks_item(&running, Some(&["linux".to_owned()]));
+        assert_eq!(i.state, State::Warn);
+        assert!(i.detail.contains("still running: macos"), "{}", i.detail);
     }
 
     /// `n` merged PRs, the first `with_changelog` of them changing the changelog.

@@ -405,6 +405,23 @@ fn ready_judges_checks_by_what_github_says_is_required() {
 }
 
 #[test]
+fn ready_counts_every_check_when_the_rules_require_none() {
+    let w = World::new();
+    // GitHub answers isRequired: false for both, as for a branch with no
+    // rules. That says nothing is required, not that CI doesn't matter.
+    let graphql = r#"{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"contexts":{"nodes":[{"__typename":"CheckRun","name":"linux","isRequired":false},{"__typename":"CheckRun","name":"docs","isRequired":false}]}}}}]}}}}}"#;
+    w.stub_gh(&gh_pr8("UNSTABLE", graphql, "[]"));
+    w.taro()
+        .args(["ready", "8", "--repo", "acme/app"])
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains("Failed: docs"))
+        .stdout(predicate::str::contains(
+            "require no check, so every check counts",
+        ));
+}
+
+#[test]
 fn ready_blocks_when_github_does_for_a_reason_taro_cant_see() {
     let w = World::new();
     let graphql = r#"{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"contexts":{"nodes":[{"__typename":"CheckRun","name":"linux","isRequired":true},{"__typename":"CheckRun","name":"docs","isRequired":false}]}}}}]}}}}}"#;
