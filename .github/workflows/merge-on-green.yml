@@ -1,0 +1,49 @@
+# Merge on green: when CI passes on a pull request, rebase-merge it, so each
+# commit lands on main as it was reviewed (docs/decisions/0035-merge-on-green.md).
+# A draft PR is the way to keep one open.
+name: Merge on green
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    # Only CI runs for pull requests from branches in this repo, not forks.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      # No checkout: nothing from the PR runs here.
+      - name: Merge the PR that went green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          # The open PR at exactly the commit CI tested, opened by the owner
+          # or Dependabot, and not a draft.
+          pr=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open \
+            --json number,headRefOid,author,isDraft \
+            --jq ".[] | select(.headRefOid == \"$HEAD_SHA\" and .isDraft == false and (.author.login == \"$OWNER\" or .author.login == \"app/dependabot\")) | .number")
+          if [ -z "$pr" ]; then
+            echo "No open, non-draft PR from $OWNER or Dependabot at $HEAD_SHA (a draft, merged, or new commits since)."
+            exit 0
+          fi
+          # Merge only what CI tested: if main has moved, the rebased result
+          # is code CI never ran on. Rebase the branch and let CI run again.
+          behind=$(gh api "repos/$REPO/compare/main...$HEAD_SHA" --jq .behind_by)
+          if [ "$behind" != "0" ]; then
+            echo "::notice::#$pr is $behind commits behind main, so CI didn't test what would land. Rebase it on main; this runs again when CI passes."
+            exit 0
+          fi
+          gh pr merge "$pr" --repo "$REPO" --rebase --delete-branch --match-head-commit "$HEAD_SHA"
