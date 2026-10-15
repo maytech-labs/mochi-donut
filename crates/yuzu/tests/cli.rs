@@ -262,6 +262,64 @@ fn the_hook_ignores_other_tools_and_asks_on_bad_input() {
     assert!(hook(h.path(), "not json").contains("\"permissionDecision\":\"ask\""));
 }
 
+// The environments file decides what agents may change, so an agent that
+// could edit it freely could approve itself.
+#[test]
+fn changing_yuzus_own_config_needs_approval() {
+    let h = home(Some(ENVIRONMENTS));
+    for line in [
+        "sed -i '' 's/samwise/balin/' ~/.config/yuzu/environments.toml",
+        "echo 'ssh_hosts = [\"*\"]' >> $HOME/.config/yuzu/environments.toml",
+        "rm -rf ~/.config/yuzu",
+    ] {
+        let (code, body) = check(h.path(), line);
+        assert_eq!(code, 1, "{line}");
+        assert_eq!(body["decision"], "ask", "{line}");
+        assert_eq!(body["targets"][0]["kind"], "yuzu_config", "{line}");
+        let message = body["message"].as_str().unwrap();
+        assert!(message.contains("yuzu's own config"), "{message}");
+        assert!(message.contains("ask the user"), "{message}");
+    }
+
+    let (code, body) = check(h.path(), "cat ~/.config/yuzu/environments.toml");
+    assert_eq!((code, &body["decision"]), (0, &Value::from("allow")));
+    assert_eq!(body["targets"][0]["access"], "read");
+
+    let out = hook(
+        h.path(),
+        &bash("sed -i '' 's/a/b/' ~/.config/yuzu/environments.toml"),
+    );
+    assert!(out.contains("\"permissionDecision\":\"ask\""), "{out}");
+}
+
+#[test]
+fn the_hook_asks_before_a_file_tool_edits_yuzus_config() {
+    let h = home(Some(ENVIRONMENTS));
+    let config = h.path().join(".config/yuzu/environments.toml");
+    for tool in ["Edit", "Write", "MultiEdit"] {
+        let input = serde_json::json!({
+            "tool_name": tool,
+            "tool_input": { "file_path": config, "content": "" },
+            "cwd": h.path(),
+        })
+        .to_string();
+        let out = hook(h.path(), &input);
+        assert!(
+            out.contains("\"permissionDecision\":\"ask\""),
+            "{tool}: {out}"
+        );
+        assert!(out.contains("yuzu's own config"), "{tool}: {out}");
+    }
+
+    let elsewhere = serde_json::json!({
+        "tool_name": "Edit",
+        "tool_input": { "file_path": h.path().join("notes.md") },
+        "cwd": h.path(),
+    })
+    .to_string();
+    assert_eq!(hook(h.path(), &elsewhere), "");
+}
+
 #[test]
 fn mcp_serves_check_as_a_tool() {
     let h = home(Some(ENVIRONMENTS));

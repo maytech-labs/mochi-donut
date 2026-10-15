@@ -57,3 +57,4 @@ taro has no `config.md`: it has nothing to configure.
 - [0032 taro takes required checks from isRequired, and blocks when GitHub does](decisions/0032-taro-fixes.md)
 - [0033 ube reads CI by job and directory, measured by replaying merged changes](decisions/0033-ube-ci-steps-and-replay.md)
 - [0035 Merge pull requests when CI passes](decisions/0035-merge-on-green.md)
+- [0036 yuzu asks before anything changes its own config](decisions/0036-yuzu-guards-its-config.md)

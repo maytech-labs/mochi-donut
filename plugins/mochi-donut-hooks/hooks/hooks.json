@@ -1,9 +1,9 @@
 {
-  "description": "yuzu checks each Bash command before it runs (asking if yuzu is missing or fails); matcha records each command and its output for ledger evidence.",
+  "description": "yuzu checks each Bash command before it runs, and each file edit for its own config (asking if yuzu is missing or fails); matcha records each command and its output for ledger evidence.",
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",

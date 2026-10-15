@@ -69,6 +69,8 @@ impl Environment {
             Kind::AwsProfile => &self.aws_profiles,
             Kind::InfraDir => &self.infra_dirs,
             Kind::CliTool => &self.cli_tools,
+            // yuzu's own config can't be declared anyone's, so it always asks.
+            Kind::YuzuConfig => &[],
         }
     }
 }
@@ -85,6 +87,8 @@ pub enum Kind {
     InfraDir,
     /// A cloud CLI that acts on whatever account its own config holds.
     CliTool,
+    /// yuzu's own environments file, which decides what agents may change.
+    YuzuConfig,
 }
 
 impl Kind {
@@ -96,10 +100,12 @@ impl Kind {
             Kind::AwsProfile => "aws profile",
             Kind::InfraDir => "infra dir",
             Kind::CliTool => "cloud cli",
+            Kind::YuzuConfig => "yuzu config",
         }
     }
 
-    /// The config key that declares targets of this kind.
+    /// The config key that declares targets of this kind. yuzu's own config
+    /// has none: it can't be declared.
     pub fn key(self) -> &'static str {
         match self {
             Kind::KubeContext => "kube_contexts",
@@ -108,6 +114,7 @@ impl Kind {
             Kind::AwsProfile => "aws_profiles",
             Kind::InfraDir => "infra_dirs",
             Kind::CliTool => "cli_tools",
+            Kind::YuzuConfig => "",
         }
     }
 }

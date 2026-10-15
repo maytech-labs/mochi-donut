@@ -40,6 +40,8 @@ git_remotes = ["github.com/acme/*"]
 | `infra_dirs` | Directories terraform, tofu, terragrunt, or pulumi run in, with `~` for home |
 | `cli_tools` | Cloud CLIs whose configured account is this environment's |
 
+Agents can read the file, but any change to it asks the user, from Bash or a file tool: it decides what agents may change ([ADR 0036](../decisions/0036-yuzu-guards-its-config.md)).
+
 Patterns take `*` and `?`. The first environment with a matching pattern wins. Unknown keys are errors, and a file that doesn't parse makes every check ask until it's fixed, so a typo can't quietly allow everything.
 
 ## Environment variables

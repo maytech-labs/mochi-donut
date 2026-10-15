@@ -4,7 +4,7 @@ How an agent finds and uses yuzu, strongest layer first. Safety never depends on
 
 ## The check hook
 
-`yuzu hook claude-code` is a Claude Code `PreToolUse` hook on Bash. It runs `check` on every command before it runs:
+`yuzu hook claude-code` is a Claude Code `PreToolUse` hook on Bash and the file tools. It runs `check` on every Bash command before it runs, and asks before `Edit`, `Write`, `MultiEdit`, or `NotebookEdit` changes yuzu's own config ([ADR 0036](../decisions/0036-yuzu-guards-its-config.md)):
 
 - **Allowed:** prints nothing, so Claude Code's own permission rules still apply. yuzu only ever makes things stricter.
 - **Ask or deny:** answers with yuzu's message as the reason, so the agent learns what was blocked and what to do instead, and logs it for review ([config.md](config.md#files-yuzu-writes)).
@@ -17,7 +17,7 @@ The `mochi-donut-hooks` plugin installs it. By hand, the command ends in a fallb
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",

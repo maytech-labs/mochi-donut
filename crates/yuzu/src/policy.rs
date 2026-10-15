@@ -89,6 +89,17 @@ fn message(config: &Config, targets: &[Verdict]) -> String {
     let mut lines = Vec::new();
     for v in targets.iter().filter(|v| v.decision != Decision::Allow) {
         let t = &v.target;
+        if t.kind == crate::config::Kind::YuzuConfig {
+            lines.push(format!(
+                "`{}` would change yuzu's own config, {}. That file decides what agents may change without asking, so only the user should change it.",
+                t.command, t.name
+            ));
+            lines.push(
+                "It needs the user's approval. Don't edit the file another way; ask the user."
+                    .to_owned(),
+            );
+            continue;
+        }
         let whose = match &v.env {
             Some(env) if env == v.class => env.clone(),
             Some(env) => format!("{} ({})", env, v.class),
@@ -146,6 +157,7 @@ fn advice(config: &Config, v: &Verdict) -> String {
         (Kind::CliTool, false) => {
             format!(" CLIs agents may change things with: {}.", safe.join(", "))
         }
+        (Kind::YuzuConfig, false) => String::new(),
     };
     let declare = if v.env.is_none() {
         format!(

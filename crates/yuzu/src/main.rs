@@ -4,6 +4,7 @@
 
 mod config;
 mod env;
+mod guard;
 mod mcp_tools;
 mod policy;
 mod probe;
@@ -638,11 +639,34 @@ fn decide(ctx: &Ctx, words: &[String]) -> Check {
             };
         }
     };
-    let found = match words {
+    let mut found = match words {
         [line] => targets::find(line, ctx),
         _ => targets::find_words(words, ctx),
     };
+    let line = match words {
+        [line] => line.clone(),
+        _ => shell_join(words),
+    };
+    found.extend(guard::find(&line, &config.path));
     policy::check(&config, found)
+}
+
+/// Words joined into one shell line, each quoted when it needs to be.
+fn shell_join(words: &[String]) -> String {
+    words
+        .iter()
+        .map(|w| {
+            if !w.is_empty()
+                && w.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "-_./:=@%+,~".contains(c))
+            {
+                w.clone()
+            } else {
+                format!("'{}'", w.replace('\'', "'\\''"))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn run_check(ctx: &Ctx, words: &[String], format: Format) -> u8 {
@@ -712,6 +736,46 @@ struct HookDecision {
     permission_decision_reason: String,
 }
 
+/// Claude Code's tools that write a file named in their input.
+const FILE_TOOLS: &[&str] = &["Edit", "Write", "MultiEdit", "NotebookEdit"];
+
+fn edited_file(input: &serde_json::Value) -> Option<&str> {
+    ["file_path", "notebook_path"]
+        .iter()
+        .find_map(|k| input.get(k).and_then(|v| v.as_str()))
+}
+
+/// An edit through a file tool asks when it's yuzu's own config, or when the
+/// config won't load, and is allowed otherwise.
+fn decide_file_edit(ctx: &Ctx, tool: &str, file: &str) -> Check {
+    let path = Config::path(ctx);
+    let config = Config::load(&path).unwrap_or(Config {
+        path,
+        ..Config::default()
+    });
+    let edited = ctx.path(file);
+    let found = if same_file(&edited, &config.path) {
+        vec![targets::Target {
+            kind: config::Kind::YuzuConfig,
+            name: config.path.display().to_string(),
+            access: Access::Write,
+            command: format!("{tool} {file}"),
+            source: None,
+        }]
+    } else {
+        Vec::new()
+    };
+    policy::check(&config, found)
+}
+
+/// Whether two paths name one file, through symlinks when both exist.
+fn same_file(a: &std::path::Path, b: &std::path::Path) -> bool {
+    match (a.canonicalize(), b.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
+}
+
 /// Says nothing when the command is allowed, so Claude Code's own permission
 /// rules still apply; answers `ask` or `deny` otherwise. Always exits 0: the
 /// answer is in the JSON.
@@ -727,6 +791,17 @@ fn run_claude_hook(mut ctx: Ctx) -> u8 {
             Decision::Ask,
             format!("yuzu couldn't read the hook input ({e}), so it can't check this command."),
         ),
+        Ok(input) if FILE_TOOLS.contains(&input.tool_name.as_str()) => {
+            if let Some(cwd) = input.cwd {
+                ctx.cwd = cwd;
+            }
+            let Some(file) = edited_file(&input.tool_input) else {
+                return exit::OK;
+            };
+            let c = decide_file_edit(&ctx, &input.tool_name, file);
+            format!("{} {file}", input.tool_name).clone_into(&mut logged_command);
+            (c.decision, c.message.unwrap_or_default())
+        }
         Ok(input) if input.tool_name != "Bash" => return exit::OK,
         Ok(input) => {
             let Some(command) = input.tool_input.get("command").and_then(|c| c.as_str()) else {

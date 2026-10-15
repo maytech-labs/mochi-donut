@@ -32,6 +32,7 @@ Decisions
   read anything not marked agents = "none"           allowed
   write to work, production, or anything undeclared  needs the user's approval
   anything in an env with agents = "none"            denied
+  changing yuzu's own environments.toml              needs the user's approval
   When blocked, don't look for another way to run it. Use the safe target the
   message names, or ask the user.
 
