@@ -160,14 +160,37 @@ fn advice(config: &Config, v: &Verdict) -> String {
         (Kind::YuzuConfig, false) => String::new(),
     };
     let declare = if v.env.is_none() {
-        format!(
-            " If it's the user's own, they can add it to {} under an env with class = \"mine\".",
-            t.kind.key()
-        )
+        let add = match config.home_for(t.kind) {
+            Some(env) => format!(
+                "yuzu env add {} {} {}",
+                quote(&env.name),
+                t.kind.key(),
+                quote(&t.name)
+            ),
+            None => format!(
+                "yuzu env add mine {} {} --class mine",
+                t.kind.key(),
+                quote(&t.name)
+            ),
+        };
+        format!(" If it's the user's own, they can declare it with `{add}`.")
     } else {
         String::new()
     };
     format!("It needs the user's approval.{alternative}{declare}")
+}
+
+/// `word`, single-quoted when a shell would split or expand it.
+pub fn quote(word: &str) -> String {
+    if !word.is_empty()
+        && word
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "-_./:=@%+,".contains(c))
+    {
+        word.to_owned()
+    } else {
+        format!("'{}'", word.replace('\'', "'\\''"))
+    }
 }
 
 #[cfg(test)]
@@ -247,6 +270,26 @@ mod tests {
         assert!(m.contains("kube context cp3-nonprod: work."), "{m}");
         assert!(m.contains("--context k3s-pis"), "{m}");
         let r = check(&c, vec![kube("new-one", Access::Write)]);
-        assert!(r.message.unwrap().contains("kube_contexts"));
+        let m = r.message.unwrap();
+        assert!(
+            m.contains("`yuzu env add homelab kube_contexts new-one`"),
+            "{m}"
+        );
+        let empty = Config::default();
+        let m = check(&empty, vec![kube("new-one", Access::Write)])
+            .message
+            .unwrap();
+        assert!(
+            m.contains("`yuzu env add mine kube_contexts new-one --class mine`"),
+            "{m}"
+        );
+    }
+
+    #[test]
+    fn quotes_what_a_shell_would_split() {
+        assert_eq!(quote("balin"), "balin");
+        assert_eq!(quote("github.com/me/x"), "github.com/me/x");
+        assert_eq!(quote("~/my infra"), "'~/my infra'");
+        assert_eq!(quote("it's"), "'it'\\''s'");
     }
 }

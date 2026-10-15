@@ -197,6 +197,16 @@ impl Config {
             .find(|e| e.patterns(kind).iter().any(|p| glob(p, name)))
     }
 
+    /// The env to suggest declaring a new target of this kind in: the first
+    /// env agents may write to that already lists this kind, else the first
+    /// env agents may write to.
+    pub fn home_for(&self, kind: Kind) -> Option<&Environment> {
+        let writable = || self.envs.iter().filter(|e| e.agents() == Agents::Write);
+        writable()
+            .find(|e| !e.patterns(kind).is_empty())
+            .or_else(|| writable().next())
+    }
+
     /// Names (or patterns) of this kind declared in environments agents may
     /// write to, for suggesting a safe alternative.
     pub fn writable(&self, kind: Kind) -> Vec<&str> {
@@ -303,6 +313,32 @@ mod tests {
         assert_eq!(c.envs[0].agents(), Agents::Write);
         assert_eq!(c.envs[1].agents(), Agents::ReadOnly);
         assert_eq!(c.writable(Kind::KubeContext), ["k3s-pis"]);
+    }
+
+    #[test]
+    fn suggests_the_writable_env_that_already_lists_the_kind() {
+        let c = config(
+            r#"
+            [[env]]
+            name = "github"
+            class = "mine"
+            git_remotes = ["github.com/me/*"]
+
+            [[env]]
+            name = "work"
+            class = "work"
+            ssh_hosts = ["bastion"]
+
+            [[env]]
+            name = "homelab"
+            class = "mine"
+            ssh_hosts = ["samwise"]
+        "#,
+        );
+        let name = |k| c.home_for(k).map(|e| e.name.as_str());
+        assert_eq!(name(Kind::SshHost), Some("homelab"));
+        assert_eq!(name(Kind::KubeContext), Some("github"));
+        assert!(config("").home_for(Kind::SshHost).is_none());
     }
 
     #[test]

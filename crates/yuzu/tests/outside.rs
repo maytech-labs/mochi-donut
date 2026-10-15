@@ -451,7 +451,9 @@ fn check_infra_dirs_and_cloud_clis_follow_the_declarations() {
         .args(["check", "--", "gcloud run deploy api"])
         .assert()
         .code(1)
-        .stdout(predicate::str::contains("add it to cli_tools"));
+        .stdout(predicate::str::contains(
+            "yuzu env add homelab cli_tools gcloud",
+        ));
     w.yuzu(&other)
         .args(["check", "--", "gcloud projects list"])
         .assert()

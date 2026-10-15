@@ -28,7 +28,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 - `yuzu sessions`: how agents used given tools, from Claude Code transcripts, including unprompted use; the hook now logs its asks and denies for review.
 
 - `yuzu check` and the hook ask before anything changes yuzu's own `environments.toml`, from Bash or Claude Code's file tools, so an agent can't approve itself.
-- `yuzu env add <env> <key> <pattern>...`: declare a host, context, remote, profile, directory, or CLI without editing the TOML by hand. Keeps the file's comments, and says when an earlier env still matches first.
+- `yuzu env add <env> <key> <pattern>...`: declare a host, context, remote, profile, directory, or CLI without editing the TOML by hand. Keeps the file's comments, and says when an earlier env still matches first. When `check` asks about an undeclared target, its message now names the exact `yuzu env add` command.
 
 - `ube`: the change in hand. `plan` picks the repo's own checks for what changed (packages and their dependents); `run` runs them and reports each failure in a few lines with a rerun command, keyed to the exact tree; `done` checks the change is proven; `mutate` finds changed lines no test proves. MCP tools, a skill, and an optional Stop hook.
 

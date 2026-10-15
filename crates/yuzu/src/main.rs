@@ -755,16 +755,7 @@ fn decide(ctx: &Ctx, words: &[String]) -> Check {
 fn shell_join(words: &[String]) -> String {
     words
         .iter()
-        .map(|w| {
-            if !w.is_empty()
-                && w.chars()
-                    .all(|c| c.is_ascii_alphanumeric() || "-_./:=@%+,~".contains(c))
-            {
-                w.clone()
-            } else {
-                format!("'{}'", w.replace('\'', "'\\''"))
-            }
-        })
+        .map(|w| policy::quote(w))
         .collect::<Vec<_>>()
         .join(" ")
 }

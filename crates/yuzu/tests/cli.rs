@@ -295,8 +295,13 @@ fn changing_yuzus_own_config_needs_approval() {
 #[test]
 fn env_add_declares_a_host_and_keeps_the_files_comments() {
     let h = home(Some(&format!("# my hosts\n{ENVIRONMENTS}")));
-    let (code, _) = check(h.path(), "ssh balin docker start x");
+    let (code, body) = check(h.path(), "ssh balin docker start x");
     assert_eq!(code, 1);
+    let message = body["message"].as_str().unwrap();
+    assert!(
+        message.contains("`yuzu env add homelab ssh_hosts balin`"),
+        "{message}"
+    );
 
     let body = json(
         yuzu(h.path()).args(["env", "add", "homelab", "ssh_hosts", "balin", "merry"]),

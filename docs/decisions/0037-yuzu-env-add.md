@@ -12,6 +12,7 @@ When `check` asks about an undeclared target, the usual fix is to declare it. Th
 - `yuzu env add <env> <key> <pattern>...` adds patterns to one env's list. A new env needs `--class`. An existing env with a different class is an error, not a silent change. Patterns already there are reported, not repeated.
 - It edits the file in place with `toml_edit`, so the user's comments and layout survive, and it refuses to write a result that wouldn't load.
 - When an earlier env still matches an added name first, the output says so (`shadowed` in JSON), since the add then changes nothing.
+- An ask about an undeclared target names the exact command: `yuzu env add homelab ssh_hosts balin`. The env is the first one agents may write to that already lists that kind, else the first one agents may write to, else a new `mine` env with `--class mine`. This replaces "add it to ssh_hosts under an env with class = \"mine\"", a message agents act on, so the integration test that pinned it changes with it.
 - Running it is a write to yuzu's config, so the hook asks ([ADR 0036](0036-yuzu-guards-its-config.md)). It isn't an MCP tool.
 
 ## Consequences
