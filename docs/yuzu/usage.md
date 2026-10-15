@@ -44,6 +44,15 @@ Finds every target the command line would reach and decides. One argument is rea
 
 The strictest target in the line decides. The message names a safe alternative when there is one, such as `--context k3s-pis`.
 
+## env add
+
+```sh
+yuzu env add homelab ssh_hosts balin
+yuzu env add lab kube_contexts k3s-lab --class mine
+```
+
+Adds patterns to one env's list in the environments file, keeping its comments. The key is one of `kube_contexts`, `ssh_hosts`, `git_remotes`, `aws_profiles`, `infra_dirs`, or `cli_tools`. A new env needs `--class`. JSON has `added`, `already` (left alone), `created_env`, and `shadowed` (names an earlier env still matches first). Exit 2 for an unknown key, a missing class, or a file that doesn't parse. The hook asks before an agent runs it ([config.md](config.md)).
+
 ## probe
 
 ```sh

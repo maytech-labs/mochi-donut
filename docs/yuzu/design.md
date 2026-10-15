@@ -56,7 +56,7 @@ $ yuzu check -- kubectl apply -f openbao.yaml
 
 **Since (2026-10-13):** terraform, tofu, terragrunt, and pulumi are checked by the directory they run in (`infra_dirs`), and cloud CLIs (gcloud, az, doctl, flyctl, heroku, vercel, netlify, wrangler) by the tool (`cli_tools`); see [ADR 0020](../decisions/0020-yuzu-infra-and-cloud-clis.md). The hook logs its asks and denies for review ([ADR 0025](../decisions/0025-yuzu-sessions.md)). The two-week trial hasn't started: the hook isn't installed yet.
 
-**Since (2026-10-15):** any change to yuzu's own `environments.toml` asks, from Bash or Claude Code's file tools, so an agent can't approve itself ([ADR 0036](../decisions/0036-yuzu-guards-its-config.md)).
+**Since (2026-10-15):** any change to yuzu's own `environments.toml` asks, from Bash or Claude Code's file tools, so an agent can't approve itself ([ADR 0036](../decisions/0036-yuzu-guards-its-config.md)). `yuzu env add` declares a target in one line, keeping the file's comments ([ADR 0037](../decisions/0037-yuzu-env-add.md)).
 
 ## `yuzu probe`: does it work from where the user is?
 

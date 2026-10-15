@@ -4,6 +4,7 @@
 
 mod config;
 mod env;
+mod envfile;
 mod guard;
 mod mcp_tools;
 mod policy;
@@ -114,6 +115,11 @@ enum Command {
         #[arg(long = "dir", value_name = "PATH")]
         dirs: Vec<String>,
     },
+    /// Change the environments file. Agents need the user's approval to run it.
+    Env {
+        #[command(subcommand)]
+        action: EnvAction,
+    },
     /// Serve status, check, probe, whoami, and wait as MCP tools on stdin and stdout.
     Mcp,
     /// Print a short guide to yuzu, written for AI agents.
@@ -154,6 +160,24 @@ enum WaitCondition {
         /// The command, after `--`.
         #[arg(last = true, required = true)]
         command: Vec<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum EnvAction {
+    /// Add patterns to an env's list, keeping the file's comments:
+    /// `yuzu env add homelab ssh_hosts balin`.
+    Add {
+        /// The env's name. A new one needs --class.
+        env: String,
+        /// kube_contexts, ssh_hosts, git_remotes, aws_profiles, infra_dirs, or cli_tools.
+        key: String,
+        /// Names or patterns (`*`, `?`) to add.
+        #[arg(required = true)]
+        patterns: Vec<String>,
+        /// Whose a new env is. Only needed to make one.
+        #[arg(long, value_enum)]
+        class: Option<config::Class>,
     },
 }
 
@@ -198,6 +222,15 @@ fn main() -> ExitCode {
             not,
         } => run_wait(&ctx, condition, &timeout, every.as_deref(), not, format),
         Command::Check { command } => run_check(&ctx, &command, format),
+        Command::Env {
+            action:
+                EnvAction::Add {
+                    env,
+                    key,
+                    patterns,
+                    class,
+                },
+        } => run_env_add(&ctx, &env, &key, &patterns, class, format),
         Command::Hook {
             agent: HookAgent::ClaudeCode,
         } => run_claude_hook(ctx),
@@ -581,6 +614,73 @@ fn describe(a: &probe::Attempt) -> String {
         None => {}
     }
     parts.join("   ")
+}
+
+fn run_env_add(
+    ctx: &Ctx,
+    env: &str,
+    key: &str,
+    patterns: &[String],
+    class: Option<config::Class>,
+    format: Format,
+) -> u8 {
+    let Some(kind) = config::Kind::from_key(key) else {
+        eprintln!(
+            "{key} isn't a key yuzu reads. Use kube_contexts, ssh_hosts, git_remotes, aws_profiles, infra_dirs, or cli_tools."
+        );
+        return exit::USAGE;
+    };
+    let path = Config::path(ctx);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => {
+            eprintln!("couldn't read {}: {e}", path.display());
+            return exit::USAGE;
+        }
+    };
+    let added = match envfile::add(&text, &path, env, kind, patterns, class) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("{e}");
+            return exit::USAGE;
+        }
+    };
+    if !added.added.is_empty() || added.created_env {
+        let written = path
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&path, &added.text));
+        if let Err(e) = written {
+            eprintln!("couldn't write {}: {e}", path.display());
+            return exit::USAGE;
+        }
+    }
+    match format {
+        Format::Json => print_json(&added),
+        Format::Text => {
+            if added.created_env {
+                println!("Made env {env}.");
+            }
+            if !added.added.is_empty() {
+                println!(
+                    "Added {} to {env}'s {key} in {}.",
+                    added.added.join(", "),
+                    added.path
+                );
+            }
+            if !added.already.is_empty() {
+                println!("Already in {env}'s {key}: {}.", added.already.join(", "));
+            }
+            for s in &added.shadowed {
+                println!(
+                    "But {} still matches {} first, since the first env with a match wins. Move {env} above {} in the file to change that.",
+                    s.pattern, s.env, s.env
+                );
+            }
+        }
+    }
+    exit::OK
 }
 
 fn run_status(ctx: &Ctx, format: Format) -> u8 {

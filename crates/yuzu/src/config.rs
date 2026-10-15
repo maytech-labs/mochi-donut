@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::env::Ctx;
 
 /// Whose an environment is.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, clap::ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum Class {
     Mine,
@@ -104,6 +104,20 @@ impl Kind {
         }
     }
 
+    /// The kind a config key declares, for kinds that can be declared.
+    pub fn from_key(key: &str) -> Option<Kind> {
+        [
+            Kind::KubeContext,
+            Kind::SshHost,
+            Kind::GitRemote,
+            Kind::AwsProfile,
+            Kind::InfraDir,
+            Kind::CliTool,
+        ]
+        .into_iter()
+        .find(|k| k.key() == key)
+    }
+
     /// The config key that declares targets of this kind. yuzu's own config
     /// has none: it can't be declared.
     pub fn key(self) -> &'static str {
@@ -161,7 +175,12 @@ impl Config {
             }
             Err(e) => return Err(format!("couldn't read {}: {e}", path.display())),
         };
-        let file: File = toml::from_str(&text)
+        Config::parse(&text, path)
+    }
+
+    /// Reads declarations from the text of the file at `path`.
+    pub fn parse(text: &str, path: &Path) -> Result<Config, String> {
+        let file: File = toml::from_str(text)
             .map_err(|e| format!("{} isn't valid: {}", path.display(), e.message()))?;
         Ok(Config {
             path: path.to_path_buf(),

@@ -40,6 +40,15 @@ git_remotes = ["github.com/acme/*"]
 | `infra_dirs` | Directories terraform, tofu, terragrunt, or pulumi run in, with `~` for home |
 | `cli_tools` | Cloud CLIs whose configured account is this environment's |
 
+To declare something without editing the TOML, run `yuzu env add`. It keeps the file's comments, and makes a new env when given `--class`:
+
+```sh
+yuzu env add homelab ssh_hosts balin
+yuzu env add lab kube_contexts k3s-lab --class mine
+```
+
+If an earlier env still matches a name you added, it says so: the first env with a match wins, so move the env up in the file. See [ADR 0037](../decisions/0037-yuzu-env-add.md).
+
 Agents can read the file, but any change to it asks the user, from Bash or a file tool: it decides what agents may change ([ADR 0036](../decisions/0036-yuzu-guards-its-config.md)).
 
 Patterns take `*` and `?`. The first environment with a matching pattern wins. Unknown keys are errors, and a file that doesn't parse makes every check ask until it's fixed, so a typo can't quietly allow everything.

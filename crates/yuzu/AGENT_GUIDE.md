@@ -57,6 +57,9 @@ Declaring environments: ~/.config/yuzu/environments.toml (or $YUZU_CONFIG)
   cli_tools = ["flyctl"]             # cloud CLIs whose account is this env's
   # agents = "write" | "read-only" | "none"  (default: write for mine, else read-only)
   The first env with a matching pattern wins.
+  To add one: yuzu env add <env> <key> <pattern>... [--class mine]
+  Changing this file asks the user. Don't run env add to get past an ask;
+  suggest it, and let the user approve it.
 
 Flags on every command
   --json   one JSON object on stdout

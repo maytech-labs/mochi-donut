@@ -293,6 +293,71 @@ fn changing_yuzus_own_config_needs_approval() {
 }
 
 #[test]
+fn env_add_declares_a_host_and_keeps_the_files_comments() {
+    let h = home(Some(&format!("# my hosts\n{ENVIRONMENTS}")));
+    let (code, _) = check(h.path(), "ssh balin docker start x");
+    assert_eq!(code, 1);
+
+    let body = json(
+        yuzu(h.path()).args(["env", "add", "homelab", "ssh_hosts", "balin", "merry"]),
+        0,
+    );
+    assert_eq!(body["env"], "homelab");
+    assert_eq!(body["key"], "ssh_hosts");
+    assert_eq!(body["created_env"], false);
+    assert_eq!(body["added"], serde_json::json!(["balin"]));
+    assert_eq!(body["already"], serde_json::json!(["merry"]));
+    let text = std::fs::read_to_string(h.path().join(".config/yuzu/environments.toml")).unwrap();
+    assert!(text.starts_with("# my hosts\n"), "{text}");
+
+    let (code, body) = check(h.path(), "ssh balin docker start x");
+    assert_eq!(code, 0);
+    assert_eq!(body["targets"][0]["env"], "homelab");
+}
+
+#[test]
+fn env_add_makes_an_env_only_with_a_class() {
+    let h = home(None);
+    yuzu(h.path())
+        .args(["env", "add", "lab", "ssh_hosts", "pi-1"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("--class mine"));
+    yuzu(h.path())
+        .args(["env", "add", "lab", "ssh_host", "pi-1"])
+        .assert()
+        .code(2)
+        .stderr(predicate::str::contains("ssh_hosts"));
+
+    let body = json(
+        yuzu(h.path()).args(["env", "add", "lab", "ssh_hosts", "pi-1", "--class", "mine"]),
+        0,
+    );
+    assert_eq!(body["created_env"], true);
+    let (code, _) = check(h.path(), "ssh pi-1 reboot");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn env_add_says_when_an_earlier_env_still_wins() {
+    let h = home(Some(ENVIRONMENTS));
+    let body = json(
+        yuzu(h.path()).args([
+            "env",
+            "add",
+            "mine2",
+            "kube_contexts",
+            "work-sandbox",
+            "--class",
+            "mine",
+        ]),
+        0,
+    );
+    assert_eq!(body["shadowed"][0]["pattern"], "work-sandbox");
+    assert_eq!(body["shadowed"][0]["env"], "work");
+}
+
+#[test]
 fn the_hook_asks_before_a_file_tool_edits_yuzus_config() {
     let h = home(Some(ENVIRONMENTS));
     let config = h.path().join(".config/yuzu/environments.toml");
