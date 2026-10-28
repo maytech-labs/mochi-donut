@@ -4,6 +4,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## Unreleased
 
+## 0.1.1 - 2026-10-28
+
 ### Changed
 
 - `mochi-bite` works incrementally, pausing between chunks for questions, and activates only on "bite on this" or "chew on this".
