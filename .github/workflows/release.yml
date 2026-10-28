@@ -3,7 +3,7 @@ name: Release
 # Push a tag like v0.1.0 to build matcha, yuzu, ube, and taro for each platform
 # and publish them as a GitHub release, with checksums and the version's
 # section of CHANGELOG.md as notes. Tag main's latest commit; the prepare job
-# sets the version from the tag and commits it.
+# sets the version (crates and plugins) from the tag and commits it.
 
 on:
   push:
@@ -54,11 +54,12 @@ jobs:
           git switch --quiet main
           sed -i "0,/^version = \"$current\"/s//version = \"$version\"/" Cargo.toml
           sed -i "s/version = \"$current\", path/version = \"$version\", path/" crates/*/Cargo.toml
+          sed -i "s/\"version\": \"$current\"/\"version\": \"$version\"/" plugins/*/.claude-plugin/plugin.json
           cargo update --workspace
           sed -i "s/^## Unreleased$/## Unreleased\n\n## $version - $(date -u +%F)/" CHANGELOG.md
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml Cargo.lock CHANGELOG.md crates/*/Cargo.toml
+          git add Cargo.toml Cargo.lock CHANGELOG.md crates/*/Cargo.toml plugins/*/.claude-plugin/plugin.json
           git commit --quiet -m "chore: release $version"
           git tag --force "$GITHUB_REF_NAME"
           git push origin main

@@ -6,6 +6,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Changed
 
+- `mochi-bite` works incrementally, pausing between chunks for questions, and activates only on "bite on this" or "chew on this".
+- The plugins' versions follow the release: the release workflow sets them from the tag along with the crates.
 - Releasing is pushing a tag: the release workflow sets the version, dates this changelog, and commits that to `main` before building ([ADR 0041](docs/decisions/0041-release-from-a-tag.md)).
 
 ## 0.1.0 - 2026-10-28
