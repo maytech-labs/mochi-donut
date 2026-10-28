@@ -1,6 +1,6 @@
 # 0011. This repo is its own Homebrew tap
 
-- **Status:** Accepted
+- **Status:** Superseded by [0039](0039-org-homebrew-tap.md)
 - **Date:** 2026-10-12
 
 ## Context

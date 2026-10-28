@@ -33,7 +33,7 @@ taro has no `config.md`: it has nothing to configure.
 - [0008 How recipe decides a file is missing, and how we measure it](decisions/0008-recipe-scoring.md)
 - [0009 A release profile tuned for small and fast](decisions/0009-release-profile.md)
 - [0010 `make install` into /usr/local/bin](decisions/0010-make-install.md)
-- [0011 This repo is its own Homebrew tap](decisions/0011-homebrew-tap.md)
+- [0011 This repo is its own Homebrew tap](decisions/0011-homebrew-tap.md) (superseded by 0039)
 - [0012 recipe needs six earlier changes; commit weighting didn't help](decisions/0012-recipe-support-six.md) (amended)
 - [0013 How yuzu check finds targets and decides](decisions/0013-yuzu-check.md) (amended)
 - [0014 yuzu runs as a Claude Code hook that's silent when it allows](decisions/0014-claude-code-hook.md) (amended)
@@ -61,3 +61,4 @@ taro has no `config.md`: it has nothing to configure.
 - [0036 yuzu asks before anything changes its own config](decisions/0036-yuzu-guards-its-config.md)
 - [0037 `yuzu env add` declares a target, and asks name it](decisions/0037-yuzu-env-add.md)
 - [0038 The Reciprocal Ethical AI License (REAL) 1.0, not MIT](decisions/0038-real-license.md)
+- [0039 The formula lives in the maytech-labs tap](decisions/0039-org-homebrew-tap.md)
