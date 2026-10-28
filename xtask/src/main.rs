@@ -1,19 +1,23 @@
 //! Repo automation, run with `cargo xtask <task>`. Tasks are Rust so the repo
 //! needs nothing but Cargo (docs/decisions/0002-rust-and-cargo.md).
 
+mod notices;
+
 use std::process::{Command, ExitCode};
 
 const USAGE: &str = "\
 cargo xtask <task>
 
 Tasks:
-  check   Everything CI runs: fmt, clippy, tests
+  check    Everything CI runs: fmt, clippy, tests, third-party notices
+  notices  Regenerate THIRD-PARTY-NOTICES.md from Cargo.lock
 ";
 
 fn main() -> ExitCode {
     let task = std::env::args().nth(1);
     match task.as_deref() {
         Some("check") => check(),
+        Some("notices") => notices::run(std::env::args().skip(2).collect()),
         _ => {
             eprint!("{USAGE}");
             ExitCode::from(2)
@@ -34,6 +38,7 @@ fn check() -> ExitCode {
             "warnings",
         ],
         &["test", "--workspace"],
+        &["xtask", "notices", "--check"],
     ];
     for args in steps {
         eprintln!("==> cargo {}", args.join(" "));
