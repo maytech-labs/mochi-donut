@@ -9,7 +9,7 @@ The formula in `maytech-labs/homebrew-tap` is HEAD-only ([0039](0039-org-homebre
 
 ## Decision
 
-- Pushing a tag like `v0.1.0` runs `.github/workflows/release.yml`, modeled on real-check's. The tag must match the workspace version in `Cargo.toml`.
+- Pushing a tag like `v0.1.0` runs `.github/workflows/release.yml`, modeled on real-check's. [0041](0041-release-from-a-tag.md) sets the version from the tag.
 - It builds for `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, and `aarch64-unknown-linux-gnu`. Each archive holds `matcha`, `yuzu`, `ube`, `taro`, `LICENSE.md`, `THIRD-PARTY-NOTICES.md`, `README.md`, and `CHANGELOG.md`, with a sha256 beside it.
 - The release notes are the version's section of `CHANGELOG.md`.
 - A last job points each url and sha256 in `Formula/mochi-donut.rb` in the tap at the new archives. It pushes with `HOMEBREW_TAP_TOKEN`, a fine-grained token with contents write on the tap only, owned by `maytech-labs`.
