@@ -62,3 +62,4 @@ taro has no `config.md`: it has nothing to configure.
 - [0037 `yuzu env add` declares a target, and asks name it](decisions/0037-yuzu-env-add.md)
 - [0038 The Reciprocal Ethical AI License (REAL) 1.0, not MIT](decisions/0038-real-license.md)
 - [0039 The formula lives in the maytech-labs tap](decisions/0039-org-homebrew-tap.md)
+- [0040 Tagged releases publish prebuilt binaries and bump the tap](decisions/0040-release-workflow.md)
