@@ -63,3 +63,4 @@ taro has no `config.md`: it has nothing to configure.
 - [0038 The Reciprocal Ethical AI License (REAL) 1.0, not MIT](decisions/0038-real-license.md)
 - [0039 The formula lives in the maytech-labs tap](decisions/0039-org-homebrew-tap.md)
 - [0040 Tagged releases publish prebuilt binaries and bump the tap](decisions/0040-release-workflow.md)
+- [0041 Pushing a tag is the whole release](decisions/0041-release-from-a-tag.md)
