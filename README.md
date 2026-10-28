@@ -24,10 +24,11 @@ yuzu agent-guide
 
 ## Install
 
-With Homebrew (builds the latest `main` until the first release):
+With Homebrew, from the [maytech-labs tap](https://github.com/maytech-labs/homebrew-tap) (builds the latest `main` until the first release):
 
 ```sh
-brew tap maytech-labs/mochi-donut https://github.com/maytech-labs/mochi-donut
+brew tap maytech-labs/tap
+brew trust maytech-labs/tap
 brew install --HEAD mochi-donut
 brew upgrade --fetch-HEAD mochi-donut   # later, to update
 ```
