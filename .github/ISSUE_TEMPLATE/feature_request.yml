@@ -1,0 +1,21 @@
+name: Feature request
+description: A question the tools should answer, or a better way to answer one.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What went wrong or took too long, in a real session. Commands and counts help.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What the tool would do, and which tool it belongs in (matcha, yuzu, ube, or taro).
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What you do today instead.

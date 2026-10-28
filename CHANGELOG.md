@@ -6,6 +6,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- A code of conduct, issue and pull request templates, and contributing notes for outside contributors.
 - Cargo workspace with `matcha` and `yuzu`. Every planned command parses and reports that it isn't built yet (exit code 3, or a JSON body with `--json`).
 - `matcha agent-guide` and `yuzu agent-guide`.
 - `matcha census`: compare alternatives (`--alt`) or spellings (`--spelling`) across tracked files, by language, with examples.

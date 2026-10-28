@@ -1,0 +1,37 @@
+name: Bug report
+description: A command did something wrong, crashed, or gave a misleading answer.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: A way to get a risky command past `yuzu check` is a security bug. Report it privately (see SECURITY.md), not here.
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The exact command you ran.
+      placeholder: matcha recipe --check --json
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: Output and exit code. `--json` output is most useful.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and platform
+      description: How you installed it, the commit, and the OS.
+      placeholder: brew --HEAD at abc1234, macOS 26
+    validations:
+      required: true

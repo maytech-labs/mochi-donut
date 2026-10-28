@@ -2,6 +2,8 @@
 
 Thanks for your interest. mochi-donut is pre-release, so the design is still moving; open an issue before starting anything large.
 
+Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md). Report security bugs privately, as [SECURITY.md](SECURITY.md) says, not in an issue.
+
 ## Setup
 
 You need [rustup](https://rustup.rs). The toolchain version is pinned in `rust-toolchain.toml` and installs on first build.
@@ -9,7 +11,7 @@ You need [rustup](https://rustup.rs). The toolchain version is pinned in `rust-t
 ```sh
 cargo build
 cargo xtask check   # fmt, clippy, tests: the same as CI (or: make check)
-make install        # build and install matcha and yuzu into /usr/local/bin
+make install        # build and install matcha, yuzu, ube, and taro into /usr/local/bin
 ```
 
 ## Making a change
@@ -19,6 +21,7 @@ make install        # build and install matcha and yuzu into /usr/local/bin
 - Update `CHANGELOG.md` under **Unreleased**.
 - Write commit messages as terse [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): `fix(yuzu): treat unknown contexts as risky`. Details are in [AGENTS.md](AGENTS.md#commits-and-pull-requests).
 - If you made a design decision, add an ADR in `docs/decisions/`.
+- Open the pull request against `main`. The template asks what changed, why, which ADRs it adds, and how you tested it. CI must pass.
 
 ## License
 
