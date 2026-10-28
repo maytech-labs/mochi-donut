@@ -1,6 +1,6 @@
 # 0005. MIT license
 
-- **Status:** Accepted
+- **Status:** Superseded by [0038](0038-real-license.md)
 - **Date:** 2026-10-12
 
 ## Context

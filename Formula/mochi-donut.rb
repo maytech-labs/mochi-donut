@@ -5,7 +5,7 @@
 class MochiDonut < Formula
   desc "Tools that help AI coding agents work with evidence and in the right environment"
   homepage "https://github.com/trammel-may/mochi-donut"
-  license "MIT"
+  license :cannot_represent
   head "https://github.com/trammel-may/mochi-donut.git", branch: "main"
 
   depends_on "rust" => :build

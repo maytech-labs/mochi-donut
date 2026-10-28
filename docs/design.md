@@ -36,7 +36,8 @@ Recorded as ADRs in [decisions/](decisions/):
 - [0002](decisions/0002-rust-and-cargo.md) Rust, built with Cargo, not Bazel
 - [0003](decisions/0003-names.md) Names from mochi donuts: `matcha` for the repo, `yuzu` for the environment
 - [0004](decisions/0004-prove-before-announcing.md) Prove the tools are useful before announcing them
-- [0005](decisions/0005-mit-license.md) MIT license
+- [0005](decisions/0005-mit-license.md) MIT license (superseded by 0038)
+- [0038](decisions/0038-real-license.md) The Reciprocal Ethical AI License (REAL) 1.0, not MIT
 
 ## Background
 

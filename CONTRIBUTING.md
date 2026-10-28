@@ -22,4 +22,4 @@ make install        # build and install matcha and yuzu into /usr/local/bin
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions are licensed under the [Reciprocal Ethical AI License (REAL) 1.0](LICENSE.md), the same as the rest of the project.

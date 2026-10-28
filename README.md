@@ -135,4 +135,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). AI agents working in this repo start wit
 
 ## License
 
-[MIT](LICENSE)
+[Reciprocal Ethical AI License (REAL) 1.0](LICENSE.md). It's source-available, not OSI open source: you can use, change, and share the code, changes stay under the same license, and training a model on it means releasing that model's weights and training pipeline under REAL too. See [ADR 0038](docs/decisions/0038-real-license.md).

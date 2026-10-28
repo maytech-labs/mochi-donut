@@ -27,7 +27,7 @@ taro has no `config.md`: it has nothing to configure.
 - [0002 Rust, built with Cargo, not Bazel](decisions/0002-rust-and-cargo.md)
 - [0003 Names from mochi donuts: matcha for the repo, yuzu for the environment](decisions/0003-names.md)
 - [0004 Prove the tools are useful before announcing them](decisions/0004-prove-before-announcing.md)
-- [0005 MIT license](decisions/0005-mit-license.md)
+- [0005 MIT license](decisions/0005-mit-license.md) (superseded by 0038)
 - [0006 Terse conventional commits, no tool attribution](decisions/0006-commit-messages.md)
 - [0007 Phase 1 index: ask git, compute in memory](decisions/0007-phase-1-index.md)
 - [0008 How recipe decides a file is missing, and how we measure it](decisions/0008-recipe-scoring.md)
@@ -60,3 +60,4 @@ taro has no `config.md`: it has nothing to configure.
 - [0035 Merge pull requests when CI passes](decisions/0035-merge-on-green.md)
 - [0036 yuzu asks before anything changes its own config](decisions/0036-yuzu-guards-its-config.md)
 - [0037 `yuzu env add` declares a target, and asks name it](decisions/0037-yuzu-env-add.md)
+- [0038 The Reciprocal Ethical AI License (REAL) 1.0, not MIT](decisions/0038-real-license.md)
