@@ -25,7 +25,7 @@ The design across tools is in [docs/design.md](docs/design.md); each tool's desi
 
 1. Read `docs/<tool>/design.md` for what you're building, and any ADRs it links. Cross-tool questions are in `docs/design.md`.
 2. Write the test first where practical: an integration test in `crates/<tool>/tests/` that runs the binary, then unit tests for the logic.
-3. Run `cargo xtask check` (fmt, clippy with warnings as errors, all tests). CI runs the same on Linux and macOS.
+3. Run `cargo xtask check` (fmt, clippy with warnings as errors, all tests, third-party notices). After changing dependencies, run `cargo xtask notices`. CI runs the same on Linux and macOS.
 4. Update docs in the same change: the tool's `docs/<tool>/` pages (design status, usage, config), the README's roadmap, and `CHANGELOG.md` under **Unreleased**. Run `matcha drift` to catch what you missed.
 5. Record every decision you made as an ADR (below).
 

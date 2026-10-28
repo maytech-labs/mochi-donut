@@ -23,5 +23,5 @@ install: build ## Install matcha, yuzu, ube, and taro into $(BINDIR) (default /u
 uninstall: ## Remove matcha, yuzu, ube, and taro from $(BINDIR)
 	rm -f $(foreach b,$(BINS),"$(DESTDIR)$(BINDIR)/$(b)")
 
-check: ## Everything CI runs: fmt, clippy, tests
+check: ## Everything CI runs: fmt, clippy, tests, third-party notices
 	$(CARGO) xtask check
