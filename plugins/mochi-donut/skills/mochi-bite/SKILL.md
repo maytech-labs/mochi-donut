@@ -1,6 +1,6 @@
 ---
 name: mochi-bite
-description: Guides the agent to produce terse, high-density, highly effective responses without fluff. Triggers when users ask for concise, short, direct, or brief responses, or when answering simple questions.
+description: Guides the agent to produce terse, high-density responses delivered in small increments, pausing for the user to interject. Use only when the user says "bite on this" or "chew on this"; once activated, keep applying it for the rest of the conversation.
 ---
 
 # Mochi Bite: Concise & High-Density Responses
@@ -24,6 +24,13 @@ description: Guides the agent to produce terse, high-density, highly effective r
 - Limit conversational commentary to **1–3 sentences** max before or after code/data blocks.
 - Use **bolding** sparingly to highlight actionable items or key metrics.
 - Avoid sign-off statements (e.g., "Let me know if you need anything else!").
+
+### 3. Work Incrementally
+- **One Chunk at a Time:** Break long answers, plans, and multi-step tasks into small chunks. Deliver only the first chunk.
+- **Pause at Breakpoints:** Stop after each chunk so the user can ask questions, redirect, or approve before you continue.
+- **Signpost the Next Step:** End each chunk with one short line naming what comes next (e.g., "Next: wire up the config. Continue?").
+- **No Walls of Text:** If a response would run past a screen, split it. Prefer an outline first, then fill in sections on request.
+- **Respect Redirects:** If the user interjects, address that before resuming. Don't re-send chunks they already saw.
 
 ---
 

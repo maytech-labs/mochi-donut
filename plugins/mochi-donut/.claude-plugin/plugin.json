@@ -1,6 +1,6 @@
 {
   "name": "mochi-donut",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "MCP servers and skills for matcha (census, recipe, drift, ledger), yuzu (status, check, probe, whoami, wait), ube (plan, run, done), and taro (ready, reviews, owners, flaky). Needs the binaries on PATH.",
   "author": {
     "name": "Trammel May"
