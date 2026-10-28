@@ -1,12 +1,12 @@
 # Homebrew formula for matcha, yuzu, ube, and taro. This repo is its own tap:
-#   brew tap trammel-may/mochi-donut https://github.com/trammel-may/mochi-donut
+#   brew tap maytech-labs/mochi-donut https://github.com/maytech-labs/mochi-donut
 #   brew install --HEAD mochi-donut
 # HEAD-only until the first release (docs/decisions/0011-homebrew-tap.md).
 class MochiDonut < Formula
   desc "Tools that help AI coding agents work with evidence and in the right environment"
-  homepage "https://github.com/trammel-may/mochi-donut"
+  homepage "https://github.com/maytech-labs/mochi-donut"
   license :cannot_represent
-  head "https://github.com/trammel-may/mochi-donut.git", branch: "main"
+  head "https://github.com/maytech-labs/mochi-donut.git", branch: "main"
 
   depends_on "rust" => :build
 

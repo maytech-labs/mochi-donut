@@ -27,7 +27,7 @@ yuzu agent-guide
 With Homebrew (builds the latest `main` until the first release):
 
 ```sh
-brew tap trammel-may/mochi-donut https://github.com/trammel-may/mochi-donut
+brew tap maytech-labs/mochi-donut https://github.com/maytech-labs/mochi-donut
 brew install --HEAD mochi-donut
 brew upgrade --fetch-HEAD mochi-donut   # later, to update
 ```
@@ -43,7 +43,7 @@ make uninstall
 With Cargo:
 
 ```sh
-cargo install --git https://github.com/trammel-may/mochi-donut mochi-matcha mochi-yuzu mochi-ube mochi-taro
+cargo install --git https://github.com/maytech-labs/mochi-donut mochi-matcha mochi-yuzu mochi-ube mochi-taro
 ```
 
 Pick one way; two installs means two copies on your `PATH`. The packages are named `mochi-matcha`, `mochi-yuzu`, `mochi-ube`, and `mochi-taro`; the commands they install are `matcha`, `yuzu`, `ube`, and `taro`.
@@ -79,7 +79,7 @@ Run `yuzu` to see where your shell points, `yuzu check -- '<command>'` to see wh
 In Claude Code, this repo is a plugin marketplace with two plugins:
 
 ```sh
-/plugin marketplace add trammel-may/mochi-donut   # or the path to a clone
+/plugin marketplace add maytech-labs/mochi-donut   # or the path to a clone
 /plugin install mochi-donut@mochi-donut         # MCP servers and skills for both tools
 /plugin install mochi-donut-hooks@mochi-donut   # yuzu checks every Bash command; matcha records evidence
 ```

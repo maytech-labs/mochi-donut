@@ -5,8 +5,8 @@
   "author": {
     "name": "Trammel May"
   },
-  "homepage": "https://github.com/trammel-may/mochi-donut",
-  "repository": "https://github.com/trammel-may/mochi-donut",
+  "homepage": "https://github.com/maytech-labs/mochi-donut",
+  "repository": "https://github.com/maytech-labs/mochi-donut",
   "license": "LicenseRef-REAL-1.0",
   "keywords": ["conventions", "docs", "kubernetes", "safety", "evidence"]
 }
