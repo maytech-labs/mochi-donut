@@ -88,7 +88,7 @@ Both need the binaries on your `PATH`. The hooks plugin is separate because it c
 
 Other agents with MCP can run `matcha mcp` and `yuzu mcp` as stdio servers. Any agent can learn either tool from `matcha agent-guide` or `yuzu agent-guide`.
 
-For a repo's own agent instructions (`AGENTS.md`, `CLAUDE.md`), a short trigger table works better than a manual:
+For a repo's own agent instructions (such as `AGENTS.md`), a short trigger table works better than a manual:
 
 ```
 Before copying a pattern or writing a guideline   matcha census
