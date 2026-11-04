@@ -2,7 +2,7 @@
 
 Tools that help AI coding agents work in a repo the way a careful teammate would: with evidence about how things are done here, and without touching the wrong environment.
 
-> **Status: pre-release.** All four tools are built and tested. Nothing is published yet. Nothing is published yet; see the [roadmap](#roadmap) and the [design](docs/design.md).
+> **Status: 0.1.1.** All four tools are built and tested, with prebuilt binaries for macOS and Linux on the [releases page](https://github.com/maytech-labs/mochi-donut/releases) and in the Homebrew tap. They aren't on crates.io yet ([ADR 0004](docs/decisions/0004-prove-before-announcing.md)); see the [roadmap](#roadmap) and the [design](docs/design.md).
 
 Agents start every session with no memory. They guess the house style, forget the companion edits a change needs, trust docs that have drifted, and run commands against whatever cluster or account the shell happens to point at. mochi-donut answers those questions from the repo's own history and from a declaration of your environments, in a form agents can act on.
 
@@ -24,14 +24,15 @@ yuzu agent-guide
 
 ## Install
 
-With Homebrew, from the [maytech-labs tap](https://github.com/maytech-labs/homebrew-tap) (builds the latest `main` until the first release):
+With Homebrew, from the [maytech-labs tap](https://github.com/maytech-labs/homebrew-tap), which installs the latest release's prebuilt binaries:
 
 ```sh
 brew tap maytech-labs/tap
 brew trust maytech-labs/tap
-brew install --HEAD mochi-donut
-brew upgrade --fetch-HEAD mochi-donut   # later, to update
+brew install mochi-donut
 ```
+
+`brew install --HEAD mochi-donut` builds `main` instead, which needs Rust.
 
 From a clone, into `/usr/local/bin` (or set `PREFIX`):
 
