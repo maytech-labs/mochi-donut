@@ -4,6 +4,10 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## Unreleased
 
+### Changed
+
+- The README, CONTRIBUTING.md, and SECURITY.md no longer call mochi-donut pre-release, and the README installs the release with `brew install mochi-donut`.
+
 ## 0.1.1 - 2026-10-28
 
 ### Changed

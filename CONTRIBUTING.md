@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest. mochi-donut is pre-release, so the design is still moving; open an issue before starting anything large.
+Thanks for your interest. mochi-donut is early (0.1), so the design is still moving; open an issue before starting anything large.
 
 Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md). Report security bugs privately, as [SECURITY.md](SECURITY.md) says, not in an issue.
 
