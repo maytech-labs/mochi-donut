@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Rule claims for `drift`: a check comment beside a sentence, holding the
 //! check that proves it (docs/matcha/design.md, "drift";
 //! docs/decisions/0016-drift-check-comments.md).

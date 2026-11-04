@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! drift against real git repos built in a temp directory.
 
 // Test helpers may panic; clippy's allow-unwrap-in-tests only covers #[test] fns.

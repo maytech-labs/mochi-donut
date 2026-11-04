@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `taro cleanup`: which branches are merged, proved, whatever the merge
 //! method. Local git only, until `--delete` pushes (docs/taro/design.md,
 //! "taro cleanup").

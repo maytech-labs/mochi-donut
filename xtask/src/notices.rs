@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `cargo xtask notices`: THIRD-PARTY-NOTICES.md, the licenses of every
 //! crate built into matcha, yuzu, ube, and taro, which their licenses require
 //! with each copy of the binaries.

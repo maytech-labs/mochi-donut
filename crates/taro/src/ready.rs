@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `taro ready`: can this PR merge, and if not, what's blocking it? Checks,
 //! reviews, open threads, conflicts, and the repo's own conventions as its
 //! merged PRs show them (docs/taro/design.md, "taro ready").

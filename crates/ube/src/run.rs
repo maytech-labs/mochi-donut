@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `ube run`: run a plan's checks, and report failures in a few lines each
 //! (docs/ube/design.md, "ube run").
 

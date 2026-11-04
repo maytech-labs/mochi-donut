@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Commands that would change yuzu's own config. The environments file
 //! decides what agents may change without asking, so an agent that edits it
 //! could approve itself. Every write to it asks the user

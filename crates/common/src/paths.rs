@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! What kind of file a path is, shared by matcha's census and ube's done.
 
 /// Whether a path is a test: under a `tests`, `test`, `__tests__`, `spec`, or

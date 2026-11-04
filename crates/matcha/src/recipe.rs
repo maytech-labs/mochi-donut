@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `matcha recipe`: what else usually changes when I change this? Learned from
 //! which files changed together in history (docs/matcha/design.md, "recipe").
 

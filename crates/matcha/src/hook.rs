@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `matcha hook claude-code`: a Claude Code `PostToolUse` hook on Bash that
 //! records each command and an excerpt of its output in the branch's ledger
 //! folder, so `ledger add verified --cmd` can attach it as evidence

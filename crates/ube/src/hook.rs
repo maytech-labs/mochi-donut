@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `ube hook claude-code`: a Claude Code `Stop` hook. When the agent ends
 //! its turn with a change whose planned checks haven't passed on the exact
 //! tree, it asks the agent to run them or say what's unproven. It stays out

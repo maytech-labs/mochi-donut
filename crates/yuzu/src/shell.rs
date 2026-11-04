@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Splitting a shell command line into the simple commands it would run.
 //!
 //! This is not a shell. It finds every program a line would start, with its

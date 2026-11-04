@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `matcha ledger`: what did I verify, and what did I assume? A per-branch
 //! record of claims, each verified (with evidence) or assumed, and a check
 //! that flags assumed claims as they're written into docs and comments

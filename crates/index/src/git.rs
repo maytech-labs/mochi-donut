@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Running `git` and reading its output.
 
 use std::path::Path;

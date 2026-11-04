@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `yuzu whoami`: which account each tool would act as here, where that
 //! comes from, and what overrides it. Offline by default; `--verify` asks
 //! each service (docs/decisions/0022-yuzu-whoami.md).

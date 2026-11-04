@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! The local index of a repo's files and history that matcha's commands read
 //! (docs/matcha/design.md, "The index"). It asks `git` directly rather than linking a
 //! git library, and builds what it needs in memory on each run
