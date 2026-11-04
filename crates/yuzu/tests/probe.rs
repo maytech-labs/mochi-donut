@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! probe against a local HTTP server and a stub browser that prints what
 //! headless Chrome prints. No network beyond 127.0.0.1, no real browser.
 #![cfg(unix)]

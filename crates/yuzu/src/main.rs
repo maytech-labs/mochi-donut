@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! yuzu: what your environment is. Shows and classifies the targets a command
 //! would touch (`status`, `check`) and checks services from where the user is
 //! (`probe`). See docs/yuzu/.

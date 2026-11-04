@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `matcha eval` against a real git repo with labeled findings.
 
 // Test helpers may panic; clippy's allow-unwrap-in-tests only covers #[test] fns.

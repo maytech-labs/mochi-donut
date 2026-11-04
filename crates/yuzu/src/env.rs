@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! The process environment a command would run in, captured once so the
 //! rest of yuzu can be tested without touching the real one.
 

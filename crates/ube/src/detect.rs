@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! What checks a repo declares: Cargo packages and their path dependencies,
 //! npm packages and their scripts, Go modules, Python test setups, Makefile
 //! targets, and the check commands its CI runs. Read from tracked files only

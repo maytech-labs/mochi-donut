@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! matcha's MCP tools: each maps its arguments to a matcha command line.
 //! Descriptions are triggers, written for the agent deciding what to call
 //! (docs/matcha/agents.md).

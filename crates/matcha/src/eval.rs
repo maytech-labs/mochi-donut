@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `matcha eval`: score a command's answers against labeled ones. Each case
 //! runs any command that prints JSON in a repo pinned to a commit, finds the
 //! findings in its output, and compares them with findings a person marked

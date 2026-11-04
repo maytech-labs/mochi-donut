@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `matcha mcp`, spoken to as an MCP client would, over stdio.
 
 // Test helpers may panic; clippy's allow-unwrap-in-tests only covers #[test] fns.

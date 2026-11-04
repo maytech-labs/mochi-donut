@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! What each simple command would reach, and whether it would change it:
 //! the kube context for `kubectl` and `helm`, the host for `ssh`, `scp`,
 //! `sftp`, and `rsync`, the remote for `git push`, the profile for `aws`,

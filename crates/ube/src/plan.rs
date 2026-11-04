@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `ube plan`: which of the repo's declared checks apply to a change, why,
 //! and what was left out (docs/ube/design.md, "ube plan").
 

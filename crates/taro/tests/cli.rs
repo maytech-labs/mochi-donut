@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! taro against real git repos, and a stub `gh` for the forge. cleanup's
 //! fixtures merge branches every way a forge does (merge commit, rebase,
 //! squash) and check it proves each and keeps the rest (AGENTS.md, Testing).

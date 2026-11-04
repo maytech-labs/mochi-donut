@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! census against a real git repo: what it counts and what it leaves out.
 
 // Test helpers may panic; clippy's allow-unwrap-in-tests only covers #[test] fns.

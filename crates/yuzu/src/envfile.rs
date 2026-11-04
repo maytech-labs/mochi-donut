@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Adding patterns to the environments file in place, keeping the user's
 //! comments and layout (docs/decisions/0037-yuzu-env-add.md).
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Failures from check output, a few lines each: cargo test, build, and
 //! clippy; pytest; go test; vitest and jest; tsc; eslint; and a generic
 //! `path:line: error` fallback (docs/ube/design.md, "ube run").

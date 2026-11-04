@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Which files change together, counted from history.
 
 use std::collections::HashMap;
