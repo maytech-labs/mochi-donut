@@ -64,3 +64,4 @@ taro has no `config.md`: it has nothing to configure.
 - [0039 The formula lives in the maytech-labs tap](decisions/0039-org-homebrew-tap.md)
 - [0040 Tagged releases publish prebuilt binaries and bump the tap](decisions/0040-release-workflow.md)
 - [0041 Pushing a tag is the whole release](decisions/0041-release-from-a-tag.md)
+- [0042 Propose a declared policy for commit and PR messages](decisions/0042-propose-message-policy.md)
