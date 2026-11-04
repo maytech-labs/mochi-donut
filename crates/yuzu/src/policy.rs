@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Deciding whether a command may run, from its targets and the user's
 //! declarations (docs/decisions/0013-yuzu-check.md):
 //!

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `yuzu check` decisions for real command lines, through the binary: the
 //! contract the hook relies on. One table, so a change in any decision shows
 //! up as a failing row (AGENTS.md, Testing).

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! taro: the forge and the team. Whether a PR can merge (`ready`), open
 //! review threads (`reviews`), who owns files (`owners`), flaky checks
 //! (`flaky`), and branches proved merged (`cleanup`). See docs/taro/.

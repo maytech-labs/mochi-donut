@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! The yuzu binary, run as an agent or a hook would run it, in a temporary
 //! home with its own kubeconfig and declarations.
 

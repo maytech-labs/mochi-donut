@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `yuzu status`: where the shell points right now, and whose it is.
 
 use serde::Serialize;

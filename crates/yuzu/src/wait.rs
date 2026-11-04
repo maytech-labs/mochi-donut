@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `yuzu wait`: block until a condition holds, or a timeout passes. Agents
 //! wait on CI, deploys, ports, and pods all the time, and hand-written poll
 //! loops are easy to get wrong (docs/decisions/0023-yuzu-wait.md).

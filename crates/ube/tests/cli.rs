@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! ube against real git repos. The checks it runs are the repo's own: stub
 //! `npm` and `matcha` scripts first on PATH stand in for the tools a repo
 //! would have, so ube runs unchanged and is judged by its output, exit

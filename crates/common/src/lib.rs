@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Conventions every mochi-donut tool shares: output format, exit codes, and
 //! the shape of `--json` output (docs/matcha/usage.md and docs/yuzu/usage.md, "exit codes").
 

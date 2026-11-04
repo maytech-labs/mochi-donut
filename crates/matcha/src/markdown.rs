@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Just enough Markdown for `drift`: inline code spans, links, and heading
 //! anchors, outside fenced code blocks and HTML comments.
 

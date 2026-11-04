@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Results kept in `.ube/`, keyed by the exact tree they ran on, so `done`
 //! can tell a green run on this code from one on code since edited. The
 //! folder ignores itself (docs/ube/config.md).

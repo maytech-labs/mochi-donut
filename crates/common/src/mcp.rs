@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! A Model Context Protocol server over stdio, as a thin layer over a tool's
 //! own CLI: each MCP tool call runs the binary again with `--json` and hands
 //! back what it printed (docs/design.md, "Interfaces";

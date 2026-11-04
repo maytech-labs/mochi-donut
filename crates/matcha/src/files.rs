@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Reading the repo's tracked text files.
 
 use std::path::Path;

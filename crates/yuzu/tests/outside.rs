@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! yuzu against the programs it talks to: gh, ssh, aws, curl, a browser,
 //! a local server. Programs we don't control are stub scripts put first on
 //! PATH (or passed as --browser), so yuzu runs unchanged and is judged only

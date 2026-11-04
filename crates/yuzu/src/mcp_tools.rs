@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! yuzu's MCP tools: each maps its arguments to a yuzu command line. The
 //! hook isn't one: safety checks run as hooks, never on the agent's say-so
 //! (docs/yuzu/agents.md).

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! The user's declaration of which environments are whose, read from
 //! `~/.config/yuzu/environments.toml` (docs/yuzu/config.md).
 

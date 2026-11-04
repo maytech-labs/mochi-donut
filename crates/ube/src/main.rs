@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! ube: the change in hand. Which of the repo's checks apply to it (`plan`),
 //! run them and report failures in a few lines (`run`), whether it's done
 //! with evidence (`done`), and whether its tests can fail (`mutate`).

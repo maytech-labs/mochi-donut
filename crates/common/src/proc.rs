@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Running other programs with their output captured and a time limit:
 //! yuzu's probe, whoami, and wait, and ube's checks.
 

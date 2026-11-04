@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `matcha drift`: are the docs still true? Finds mechanical claims in
 //! Markdown (code spans naming paths, symbols, make targets, and npm scripts;
 //! links and their anchors) and checks each against the repo

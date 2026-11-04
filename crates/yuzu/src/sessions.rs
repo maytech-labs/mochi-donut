@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `yuzu sessions`: how agents used given tools, from their transcripts on
 //! this machine, and what yuzu's hook asked or denied. Tells whether a tool
 //! is used unprompted, which decides whether it earns its place

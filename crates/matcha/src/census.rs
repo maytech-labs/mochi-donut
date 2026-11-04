@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `matcha census`: how does this repo usually do X? Counts each alternative
 //! across tracked files, by language, with the most typical examples
 //! (docs/matcha/design.md, "census").

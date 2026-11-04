@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! The matcha binary, run as an agent would run it.
 
 // Test helpers may panic; clippy's allow-unwrap-in-tests only covers #[test] fns.

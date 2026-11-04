@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! matcha: what a repo knows. Conventions (`census`), change recipes
 //! (`recipe`), doc drift (`drift`), and a verified-facts ledger (`ledger`).
 //! See docs/matcha/.

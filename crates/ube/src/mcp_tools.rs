@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! ube's MCP tools: each maps its arguments to a ube command line
 //! (docs/ube/agents.md).
 

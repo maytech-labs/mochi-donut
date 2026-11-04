@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! `taro flaky`: which checks fail and then pass on the same commit. From
 //! GitHub Actions runs in a window: a run that passed on a rerun after a
 //! failed attempt, or a workflow that both failed and passed on one commit

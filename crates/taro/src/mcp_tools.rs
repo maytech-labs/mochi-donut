@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! taro's MCP tools: each maps its arguments to a taro command line
 //! (docs/taro/agents.md).
 

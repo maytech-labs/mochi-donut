@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LicenseRef-REAL-1.0
 //! Talking to the forge through `gh`, and to the local repo through `git`.
 //! The repo is `host/owner/repo`: `--repo`, else the push remote's
 //! (docs/taro/design.md, "Forges").
