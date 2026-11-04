@@ -1,5 +1,7 @@
 # mochi-donut
 
+[![License: REAL 1.0](https://img.shields.io/badge/License-REAL_1.0-blue.svg)](LICENSE.md)
+
 Tools that help AI coding agents work in a repo the way a careful teammate would: with evidence about how things are done here, and without touching the wrong environment.
 
 > **Status: 0.1.1.** All four tools are built and tested, with prebuilt binaries for macOS and Linux on the [releases page](https://github.com/maytech-labs/mochi-donut/releases) and in the Homebrew tap. They aren't on crates.io yet ([ADR 0004](docs/decisions/0004-prove-before-announcing.md)); see the [roadmap](#roadmap) and the [design](docs/design.md).
